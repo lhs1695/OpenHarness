@@ -166,7 +166,65 @@ async def test_final_risk_score_recorded_after_execution(make_service) -> None:
 
 
 @pytest.mark.asyncio
-async def test_final_risk_score_stays_none_without_changes(make_service) -> None:
+async def test_final_risk_reflects_migration_change(make_service) -> None:
+    """收尾2: a schema/migration path bumps the final risk."""
+    executor = _RecordingExecutor(
+        ExecutionOutcome(status="completed", changed_files=["migrations/001_add_order.py"])
+    )
+    service = make_service(executor=executor)
+    task = service.create_task(CreateTaskInput(repository="r", title="t"))
+    service.start_task(task.id)
+    await _wait_for(service, task.id, TaskState.COMPLETED)
+    # migration +25 (missing_tests False because the migration file is "test"-free code)
+    assert service.get_task(task.id).final_risk_score >= 25
+
+
+@pytest.mark.asyncio
+async def test_final_risk_docs_only_change_is_low(make_service) -> None:
+    executor = _RecordingExecutor(
+        ExecutionOutcome(status="completed", changed_files=["README.md"])
+    )
+    service = make_service(executor=executor)
+    task = service.create_task(CreateTaskInput(repository="r", title="t"))
+    service.start_task(task.id)
+    await _wait_for(service, task.id, TaskState.COMPLETED)
+    # docs-only: no missing-tests penalty, docs bonus clamps at 0
+    assert service.get_task(task.id).final_risk_score == 0
+
+
+@pytest.mark.asyncio
+async def test_final_risk_missing_tests_for_code_change(make_service) -> None:
+    executor = _RecordingExecutor(
+        ExecutionOutcome(status="completed", changed_files=["src/payment.py"])
+    )
+    service = make_service(executor=executor)
+    task = service.create_task(CreateTaskInput(repository="r", title="t"))
+    service.start_task(task.id)
+    await _wait_for(service, task.id, TaskState.COMPLETED)
+    # non-test code without a test file -> +15 missing tests
+    assert service.get_task(task.id).final_risk_score >= 15
+
+
+@pytest.mark.asyncio
+async def test_final_risk_agent_failures_and_reviewer_blockers(make_service) -> None:
+    executor = _RecordingExecutor(
+        ExecutionOutcome(
+            status="completed",
+            changed_files=["src/payment.py", "tests/test_payment.py"],
+            agent_failures=3,
+            reviewer_high_risk_findings=1,
+        )
+    )
+    service = make_service(executor=executor)
+    task = service.create_task(CreateTaskInput(repository="r", title="t"))
+    service.start_task(task.id)
+    await _wait_for(service, task.id, TaskState.COMPLETED)
+    # agent failures +10, reviewer P0/P1 +20
+    assert service.get_task(task.id).final_risk_score >= 30
+
+
+@pytest.mark.asyncio
+async def test_final_risk_stays_none_without_changes(make_service) -> None:
     service = make_service()  # FakeTaskExecutor returns no changed files
     task = service.create_task(CreateTaskInput(repository="r", title="t"))
     service.start_task(task.id)

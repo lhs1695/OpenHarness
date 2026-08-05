@@ -22,8 +22,8 @@
 
 在审计加固基础上补最后缺口，按序实现：**交付闭环 → 风险闭环 → 真实数据跑通 → 简易 UI**。
 
-1. ✅ **真实远端交付闭环（B1 补全）**：`GitHubPublisher`（`infrastructure/github.py`：clone → apply diff → commit → push，`GH_TOKEN` 认证；本地裸仓集成测试验证真实 git push）+ `DeliveryService` 接 `remotes`/`base_branch`/`publisher` + orchestrator `_deliver` 发布后 `gh pr create --draft`；factory 从 `FORGEFLOW_REPOSITORY_REMOTES`（name=clone_url）与 `FORGEFLOW_PR_BASE` 配置。head 分支为空时自动生成 `forgeflow/{uuid}`。**真实远端验证需隔离测试仓库**（代码已可离线完整测试）。
-2. ✅ **final_risk_score 执行后重算**：`ExecutionOutcome.changed_files` 填充（Local 从 report、Model 从 diff）→ orchestrator `_record_final_risk` 用实际 changed_paths 重算风险落 `final_risk_score`（需 `policy_resolver`）。
+1. ✅ **真实远端交付闭环（B1 补全）**：`GitHubPublisher`（`infrastructure/github.py`：clone → apply diff → commit → push，`GH_TOKEN` 认证；本地裸仓集成测试验证真实 git push）+ `DeliveryService` 接 `remotes`/`base_branch`/`publisher` + orchestrator `_deliver` 发布后 `gh pr create --draft`；factory 从 `FORGEFLOW_REPOSITORY_REMOTES`（name=clone_url）与 `FORGEFLOW_PR_BASE` 配置。head 分支为空时自动生成 `forgeflow/{uuid}`。**已用隔离测试仓库 `lhs1695/forgeflow-delivery-test` 端到端实测**：真实 push 分支 + 建 Draft PR（`feat: hello.py`，base main，head `forgeflow/task_*`）；修复了 `.forgeflow.patch` 临时文件泄漏进 PR 的 bug（回归测试断言发布分支不含该文件）。测试 PR/分支已清理。
+2. ✅ **final_risk_score 执行后重算 + 启发式完善**：`ExecutionOutcome.changed_files` 填充（Local 从 report、Model 从 diff）→ orchestrator `_record_final_risk` 用 `_risk_inputs_from_changes` 推导丰富 RiskInputs：migration/schema 路径（+25）、公共 API 路径（+15）、docs/test-only 减分（-10）、非测试代码缺测试（+15）、agent_failures（工具失败≥2 → +10）、reviewer_blockers（P0/P1 → +20）。测试覆盖各分支。
 3. ✅ **真实仓库 fixture 化跑通 issues-attrs**：浅克隆真实 python-attrs/attrs（3.3MB，git-ignored）为 fixture；**修复嵌套仓库名 materialize 丢路径 bug**（`materialize_git_repo` 保留相对路径）；**修复 src-layout 包解析**（worktree 后端检测 `src/` 目录并加入 PYTHONPATH——否则 `import attr` 解析到 site-packages 而非仓库源码，收集报错）；基线 test_command 聚焦运行时单元测试（排除需外部二进制的 mypy/pyright 集成测试）。`--dataset issues-attrs` 离线全量 **21/21 通过（100%）**，真实报告 `evals/reports/2026-08-05-issues-attrs-offline.md`——当前 attrs main 通过全部单元测试，21 个已修复 issue 全部验证通过。
 4. ✅ **简易管理 UI**：`src/forgeflow/api/static/index.html`（vanilla JS）由 `GET /` 提供——任务列表/筛选/创建/详情/开始-暂停-恢复-取消/审批批准拒绝/timeline，5s 自动刷新；Playwright 实测通过。
 

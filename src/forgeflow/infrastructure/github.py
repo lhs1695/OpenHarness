@@ -192,6 +192,7 @@ class GitHubPublisher:
         patch_path = work_dir / ".forgeflow.patch"
         patch_path.write_bytes(diff.encode("utf-8"))  # bytes: keep LF (Windows text write would add CRLF)
         self._run_git(["apply", "--index", ".forgeflow.patch"], cwd=work_dir)
+        patch_path.unlink(missing_ok=True)  # the patch file itself must not land in the PR
         self._run_git(["add", "-A"], cwd=work_dir)
         self._run_git(["commit", "-m", message], cwd=work_dir)
         self._run_git(["push", "origin", f"HEAD:{branch_name}"], cwd=work_dir)

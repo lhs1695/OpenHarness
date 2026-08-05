@@ -34,6 +34,8 @@ class ExecutionOutcome:
     command_results: dict[str, ExecutionResult] = field(default_factory=dict)
     patch: Patch | None = None
     changed_files: list[str] = field(default_factory=list)
+    agent_failures: int = 0
+    reviewer_high_risk_findings: int = 0
 
 
 class TaskExecutor(Protocol):
@@ -314,7 +316,15 @@ class ModelDrivenTaskExecutor:
         command_results = command_results_from_eval(result)
         patch = patch_from_eval(task, result)
         changed_files = list(patch.changed_files) if patch is not None else []
-        if command_results or patch is not None or changed_files:
+        agent_failures = int(cast(int, result.metadata.get("tool_failures", 0) or 0))
+        reviewer_high_risk = int(cast(int, result.metadata.get("reviewer_blockers", 0) or 0))
+        if (
+            command_results
+            or patch is not None
+            or changed_files
+            or agent_failures
+            or reviewer_high_risk
+        ):
             outcome = ExecutionOutcome(
                 status=outcome.status,
                 error=outcome.error,
@@ -322,5 +332,7 @@ class ModelDrivenTaskExecutor:
                 command_results={**outcome.command_results, **command_results},
                 patch=patch,
                 changed_files=changed_files,
+                agent_failures=agent_failures,
+                reviewer_high_risk_findings=reviewer_high_risk,
             )
         return outcome

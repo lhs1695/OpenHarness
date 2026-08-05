@@ -39,6 +39,54 @@ from forgeflow.trace.repository import TraceRepository
 if TYPE_CHECKING:
     from forgeflow.orchestration.delivery import DeliveryService
 
+_DOC_SUFFIXES = (".md", ".rst", ".txt", ".ipynb")
+_SQL_SUFFIX = ".sql"
+
+
+def _is_doc_file(path: str) -> bool:
+    normalized = path.replace("\\", "/")
+    return normalized.endswith(_DOC_SUFFIXES) or normalized.startswith("docs/")
+
+
+def _is_migration_file(path: str) -> bool:
+    normalized = path.replace("\\", "/")
+    if normalized.endswith(_SQL_SUFFIX):
+        return True
+    segments = normalized.split("/")
+    return any(segment in ("migrations", "alembic", "schema", "migration") for segment in segments)
+
+
+def _is_public_api_file(path: str) -> bool:
+    segments = path.replace("\\", "/").split("/")
+    return any(segment in ("api", "public", "contracts") for segment in segments)
+
+
+def _risk_inputs_from_changes(
+    changed_files: list[str],
+    *,
+    agent_failures: int = 0,
+    reviewer_high_risk: int = 0,
+) -> RiskInputs:
+    """Derive post-execution risk facts from the actual changed files (收尾2).
+
+    Heuristics: schema/migration paths (+25), public-API paths (+15),
+    docs/tests-only (-10), code change without a test file (+15 missing tests),
+    plus agent failures and reviewer blockers surfaced by the executor.
+    """
+    has_tests = any(_is_test_file(path) for path in changed_files)
+    non_test_code = [
+        path for path in changed_files if not _is_test_file(path) and not _is_doc_file(path)
+    ]
+    return RiskInputs(
+        changed_paths=tuple(changed_files),
+        has_schema_or_migration_change=any(_is_migration_file(path) for path in changed_files),
+        has_public_api_change=any(_is_public_api_file(path) for path in changed_files),
+        is_docs_or_tests_only=bool(changed_files) and not non_test_code,
+        missing_tests=bool(non_test_code) and not has_tests,
+        agent_failures=agent_failures,
+        reviewer_high_risk_findings=reviewer_high_risk,
+    )
+
 
 class TaskOrchestrator:
     def __init__(
@@ -182,9 +230,10 @@ class TaskOrchestrator:
         if not outcome.changed_files:
             return
         policy = self._policy_resolver(stored.repository)
-        inputs = RiskInputs(
-            changed_paths=tuple(outcome.changed_files),
-            missing_tests=not any(_is_test_file(path) for path in outcome.changed_files),
+        inputs = _risk_inputs_from_changes(
+            outcome.changed_files,
+            agent_failures=outcome.agent_failures,
+            reviewer_high_risk=outcome.reviewer_high_risk_findings,
         )
         final = RiskScorer().score(inputs, policy)
         self._store.update_task(stored.id, final_risk_score=final.score)

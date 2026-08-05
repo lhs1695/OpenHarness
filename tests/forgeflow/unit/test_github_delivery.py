@@ -223,3 +223,5 @@ def test_publisher_pushes_branch_with_diff_to_local_bare_repo(tmp_path: Path) ->
         ["git", "clone", "-q", "-b", branch, str(remote), str(fetched)], check=True
     )
     assert (fetched / "a.py").read_text(encoding="utf-8") == "x = 2\n"
+    # the transient patch file must not leak into the published branch
+    assert not (fetched / ".forgeflow.patch").exists()

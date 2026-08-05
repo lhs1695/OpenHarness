@@ -47,3 +47,4 @@ tests/forgeflow/fixtures/repositories/python-attrs/
 
 # Playwright browser-test artifacts
 .playwright-mcp/
+tests/forgeflow/fixtures/repositories/forgeflow-delivery-test/

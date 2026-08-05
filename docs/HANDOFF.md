@@ -8,8 +8,8 @@
 
 ## Phase 3 收尾（2026-08-05，新增 4 项完成）
 
-1. **真实远端交付闭环**：`GitHubPublisher`（clone→apply→commit→push，GH_TOKEN）+ `DeliveryService` 接远端映射 + orchestrator 发布后建 Draft PR。测试含**本地裸仓真实 git push 集成测试**。真实远端验证需隔离测试仓库（`FORGEFLOW_REPOSITORY_REMOTES`/`FORGEFLOW_PR_BASE` 配置）。
-2. **final_risk_score 重算**：执行后按实际 changed_files 重算风险落库（`ExecutionOutcome.changed_files` + orchestrator `_record_final_risk`）。
+1. **真实远端交付闭环**：`GitHubPublisher`（clone→apply→commit→push，GH_TOKEN）+ `DeliveryService` 接远端映射 + orchestrator 发布后建 Draft PR。测试含**本地裸仓真实 git push 集成测试** + **隔离仓库 `forgeflow-delivery-test` 端到端实测**（真实 Draft PR 建成；修了 `.forgeflow.patch` 泄漏进 PR 的 bug）。
+2. **final_risk_score 重算 + 启发式完善**：执行后按实际 changed_files 重算风险；`_risk_inputs_from_changes` 推导 migration/api/docs/缺测试/agent_failures/reviewer_blockers。
 3. **issues-attrs 跑通**：真实 attrs fixture（git-ignored）+ 修嵌套仓库名 materialize bug + **修 src-layout 包解析**（worktree 后端 `src/` 进 PYTHONPATH）+ 基线聚焦单元测试 → **离线全量 21/21 通过（100%）**。
 4. **简易管理 UI**：`GET /` 静态页（列表/创建/详情/操作/审批/timeline），Playwright 实测通过。
 
