@@ -54,6 +54,20 @@ class WorktreeExecutionBackend:
     def resolve_workspace_path(self, path: str | Path) -> Path:
         return resolve_workspace_path(path, self.workspace)
 
+    def _command_env(self) -> dict[str, str]:
+        """Env for subprocesses; src-layout repos get their own ``src/`` on PYTHONPATH.
+
+        Many Python repos (e.g. python-attrs) keep the package under ``src/``, so
+        ``pytest`` otherwise resolves the package from site-packages instead of the
+        checked-out source — which breaks the test suite / collection (PHASE3 收尾3).
+        """
+        env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+        src = self.workspace / "src"
+        if src.is_dir():
+            existing = env.get("PYTHONPATH")
+            env["PYTHONPATH"] = str(src) + (os.pathsep + existing if existing else "")
+        return env
+
     async def execute(self, command: list[str], timeout_seconds: int) -> ExecutionResult:
         if not command:
             raise ValueError("command 不能为空")
@@ -64,7 +78,7 @@ class WorktreeExecutionBackend:
             cwd=str(self.workspace),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            env=self._command_env(),
         )
         timed_out = False
         try:

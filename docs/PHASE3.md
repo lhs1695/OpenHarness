@@ -24,7 +24,7 @@
 
 1. ✅ **真实远端交付闭环（B1 补全）**：`GitHubPublisher`（`infrastructure/github.py`：clone → apply diff → commit → push，`GH_TOKEN` 认证；本地裸仓集成测试验证真实 git push）+ `DeliveryService` 接 `remotes`/`base_branch`/`publisher` + orchestrator `_deliver` 发布后 `gh pr create --draft`；factory 从 `FORGEFLOW_REPOSITORY_REMOTES`（name=clone_url）与 `FORGEFLOW_PR_BASE` 配置。head 分支为空时自动生成 `forgeflow/{uuid}`。**真实远端验证需隔离测试仓库**（代码已可离线完整测试）。
 2. ✅ **final_risk_score 执行后重算**：`ExecutionOutcome.changed_files` 填充（Local 从 report、Model 从 diff）→ orchestrator `_record_final_risk` 用实际 changed_paths 重算风险落 `final_risk_score`（需 `policy_resolver`）。
-3. ✅ **真实仓库 fixture 化跑通 issues-attrs**：浅克隆真实 python-attrs/attrs（3.3MB，git-ignored）为 fixture；**修复嵌套仓库名 materialize 丢路径 bug**（`materialize_git_repo` 保留相对路径）；`--dataset issues-attrs` 离线全量跑通 21 例，真实报告 `evals/reports/2026-08-05-issues-attrs-offline.md`（基线 0/21——**如实标注**：当前 attrs 测试套件在本环境收集失败（缺完整 dev 依赖/与已装 attr 冲突），基线失败不代表 bug 存在，是环境局限）。
+3. ✅ **真实仓库 fixture 化跑通 issues-attrs**：浅克隆真实 python-attrs/attrs（3.3MB，git-ignored）为 fixture；**修复嵌套仓库名 materialize 丢路径 bug**（`materialize_git_repo` 保留相对路径）；**修复 src-layout 包解析**（worktree 后端检测 `src/` 目录并加入 PYTHONPATH——否则 `import attr` 解析到 site-packages 而非仓库源码，收集报错）；基线 test_command 聚焦运行时单元测试（排除需外部二进制的 mypy/pyright 集成测试）。`--dataset issues-attrs` 离线全量 **21/21 通过（100%）**，真实报告 `evals/reports/2026-08-05-issues-attrs-offline.md`——当前 attrs main 通过全部单元测试，21 个已修复 issue 全部验证通过。
 4. ✅ **简易管理 UI**：`src/forgeflow/api/static/index.html`（vanilla JS）由 `GET /` 提供——任务列表/筛选/创建/详情/开始-暂停-恢复-取消/审批批准拒绝/timeline，5s 自动刷新；Playwright 实测通过。
 
 ## 给下一轮对话的提示词（复制本块给 Claude Code）

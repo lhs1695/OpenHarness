@@ -9,7 +9,7 @@
       "Constructing the class with a string converts it through the pipe to int"
     ],
     "tags": ["Bug", "converter"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/1348",
       "issue_id": "1348",
@@ -27,7 +27,7 @@
       "Assignment to such a field does not raise AttributeError"
     ],
     "tags": ["Bug", "converter"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/1327",
       "issue_id": "1327",
@@ -45,7 +45,7 @@
       "Filtering does not raise TypeError when attributes use validators.in_"
     ],
     "tags": ["Bug", "asdict", "filter"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/1295",
       "issue_id": "1295",
@@ -63,7 +63,7 @@
       "The class constructs successfully and __attrs_pre_init__ runs"
     ],
     "tags": ["Bug", "kw_only"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/1284",
       "issue_id": "1284",
@@ -81,7 +81,7 @@
       "Accessing a cached_property that raises AttributeError surfaces that original error"
     ],
     "tags": ["Bug", "slots"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/1230",
       "issue_id": "1230",
@@ -99,7 +99,7 @@
       "Instantiating such a class raises TypeError"
     ],
     "tags": ["Bug", "abc"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/1229",
       "issue_id": "1229",
@@ -117,7 +117,7 @@
       "attrs classes are compatible with Python 3.11"
     ],
     "tags": ["Bug", "python-3.11"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/907",
       "issue_id": "907",
@@ -135,7 +135,7 @@
       "The stub is type-checkable"
     ],
     "tags": ["Bug", "Typing"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/883",
       "issue_id": "883",
@@ -153,7 +153,7 @@
       "The module has no unpicklable threading.local in the generated-class path"
     ],
     "tags": ["Bug", "pickling"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/754",
       "issue_id": "754",
@@ -171,7 +171,7 @@
       "The exception is raised identically on CPython and PyPy"
     ],
     "tags": ["Bug", "frozen"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/703",
       "issue_id": "703",
@@ -189,7 +189,7 @@
       "attr.fields(BaseClass)[0] == attr.fields(SubClass)[0] for an inherited attribute"
     ],
     "tags": ["Bug", "Regression", "inheritance"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/682",
       "issue_id": "682",
@@ -207,7 +207,7 @@
       "Assigning a field on such a class invokes the user-defined __setattr__"
     ],
     "tags": ["Bug", "slots"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/680",
       "issue_id": "680",
@@ -225,7 +225,7 @@
       "Defining such a class does not raise an unhandled error"
     ],
     "tags": ["Bug", "auto_attribs"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/673",
       "issue_id": "673",
@@ -243,7 +243,7 @@
       "A user __eq__ that raises ValueError is invoked when comparing"
     ],
     "tags": ["Bug", "eq"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/670",
       "issue_id": "670",
@@ -261,7 +261,7 @@
       "The subclass restores __setattr__ to object.__setattr__ unless overridden"
     ],
     "tags": ["Bug", "frozen", "inheritance"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/661",
       "issue_id": "661",
@@ -279,7 +279,7 @@
       "attr.asdict converts set to list"
     ],
     "tags": ["Bug", "asdict"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/657",
       "issue_id": "657",
@@ -297,7 +297,7 @@
       "Classes using variable annotations construct correctly under stringified annotations"
     ],
     "tags": ["Bug", "Typing", "python-3.10"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/716",
       "issue_id": "716",
@@ -315,7 +315,7 @@
       "Hypothesis-generated values are cast to the generated attrs class"
     ],
     "tags": ["Bug", "Typing", "hypothesis"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/821",
       "issue_id": "821",
@@ -333,7 +333,7 @@
       "A mypy check that uses attrs.cmp_using reports no missing-attribute error"
     ],
     "tags": ["Bug", "Typing"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/948",
       "issue_id": "948",
@@ -351,7 +351,7 @@
       "An Enum of an @attrs.frozen class works at runtime"
     ],
     "tags": ["Bug", "Typing"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/1287",
       "issue_id": "1287",
@@ -369,7 +369,7 @@
       "No TypeError: super(type, obj) is raised"
     ],
     "tags": ["Bug"],
-    "test_command": "pytest -q",
+    "test_command": "pytest -q --ignore=tests/test_pyright.py --ignore=tests/test_pyrefly.py --ignore=tests/test_ty.py --ignore=tests/test_mypy.yml",
     "metadata": {
       "issue_url": "https://github.com/python-attrs/attrs/issues/1038",
       "issue_id": "1038",
