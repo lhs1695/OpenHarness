@@ -69,3 +69,12 @@ class ApprovalRecord(Base):
     resolved_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     resolution_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ProcessedCommandRecord(Base):
+    """Durable dedup for Celery re-delivered command ids (spec §12.3)."""
+
+    __tablename__ = "forgeflow_processed_commands"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)

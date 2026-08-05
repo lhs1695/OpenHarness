@@ -18,17 +18,19 @@ class TraceRepository:
         self._store = store
 
     def save_events(self, *, task_id: str, run_id: str, events: list[SpanEvent]) -> None:
+        records = []
         for event in events:
-            payload = asdict(event)
-            occurred_at = datetime.fromisoformat(event.timestamp)
-            self._store.append_event(
-                task_id=task_id,
-                run_id=run_id,
-                event_type=event.event_type,
-                payload=payload,
-                event_id=event.event_id,
-                occurred_at=occurred_at,
+            records.append(
+                {
+                    "event_id": event.event_id,
+                    "task_id": task_id,
+                    "run_id": run_id,
+                    "event_type": event.event_type,
+                    "occurred_at": datetime.fromisoformat(event.timestamp),
+                    "payload": asdict(event),
+                }
             )
+        self._store.bulk_append_events(records)
 
     def load_events(self, task_id: str) -> list[SpanEvent]:
         raw = self._store.list_events(task_id)

@@ -4,7 +4,24 @@
 > 当前状态快照（给新读者，不含交接清单）见 `docs/STATUS.md`。
 
 ## 上次更新
-- 2026-08-05（Phase 3 启动：A1 真实评测轨迹回流 / B2 预算治理 / B1 真实 GitHub PR —— 代码+测试完成，在线验收运行中）
+- 2026-08-05（Phase 3 主流程完成 + **全面代码审计修复 P0–P3 全部落地**）
+
+## Phase 3 加固（2026-08-05，审计修复 P0–P3）
+
+对 `src/forgeflow/` 做全面代码质量审计后，按 P0–P3 修复全部发现（详见审计结论）：
+
+- **P0-1 SEVERE 风险禁止执行写操作**：orchestrator 在 SEVERE 时只出方案、直接 FAIL 并记录 `severe_blocked` 事件；`approval_requirements(SEVERE)` 返回 []。测试：`test_severe_risk_task_is_blocked_from_execution`。
+- **P0-2 审批状态持久化**：`ApprovalManager.reload` + `store.list_all_approvals` + `from_stored_approval`；factory/conftest 启动时水合——重启后审批中的任务不再卡死。测试：`test_reload_*`、`test_approvals_survive_service_restart`。
+- **P0-3 任务创建风险输入真实化**：`_risk_inputs_from_spec` 从 risk_tags/task_type/acceptance_rules 推导 RiskInputs（migration/api 标签、缺测试启发），不再恒 0。测试：`test_risk_inputs_derived_from_task_not_zero` 等。
+- **P1-4 resume 真正恢复执行**：`resume_task` 补调 `orchestrator.resume`（此前任务停在 READY 不执行）；重启语义（worktree 暂停时已清理）。
+- **P1-5 两阶段审批流**：接上 `WAITING_FINAL_APPROVAL`——PLAN 门禁 → 执行 → 评审后 FINAL 门禁 → 交付；resume 不重复执行（execution 阶段仅一次）；交付 diff 经 `patch_ready` 事件持久化。测试：`test_medium_risk_waits_for_final_approval_*`、API 审批流测试重写。
+- **P1-6/7 cancel 竞态 + 非法转移记录**：用户侧非法转移发布 `illegal_transition` 审计事件。
+- **P2-8 统一 trace 模型**：删除重复的 `event_mapper.TraceEvent`，`map_stream_event` 改产出统一 `SpanEvent`。
+- **P2-9 命令去重持久化**：`ProcessedCommandRecord` 表替代内存 set，重启后 Celery 重复投递仍幂等。
+- **P2-10/11/12**：trace 批量单 commit；`create_task` 重复 id 抛 `TaskAlreadyExistsError`；risk/gates 路径匹配合并为 `domain/policy.path_matches`。
+- **P3-13..16**：EventBus 空订阅集清理；worktree returncode 显式 + cleanup 杀运行中子进程；脱敏/secret 值类改 ASCII；`update_task` 显式刷新 `updated_at`。
+
+质量基线：**247 passed / 1 skipped / 7 deselected**，ruff clean，mypy 57 源文件 clean。
 
 ## Phase 3 进行中（2026-08-05）—— 主流程已完成（除 A3 跨模型）
 

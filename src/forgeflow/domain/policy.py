@@ -2,7 +2,26 @@
 
 from __future__ import annotations
 
+import fnmatch
+
 from pydantic import BaseModel, Field
+
+
+def path_matches(path: str, patterns: list[str]) -> bool:
+    """Whether ``path`` matches any policy glob pattern (''/''-normalized, dir prefix aware).
+
+    Shared by risk scoring and quality gates so the matching semantics stay in one place.
+    """
+    normalized = path.replace("\\", "/")
+    for pattern in patterns:
+        pat = pattern.replace("\\", "/").rstrip("/")
+        if fnmatch.fnmatch(normalized, pat):
+            return True
+        if fnmatch.fnmatch(normalized, pat + "/**"):
+            return True
+        if normalized.startswith(pat + "/"):
+            return True
+    return False
 
 
 class RepositoryPolicy(BaseModel):

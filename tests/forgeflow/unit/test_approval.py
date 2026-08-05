@@ -17,7 +17,8 @@ def test_approval_requirements_by_risk() -> None:
     assert approval_requirements(RiskLevel.LOW) == []
     assert approval_requirements(RiskLevel.MEDIUM) == [ApprovalType.FINAL]
     assert approval_requirements(RiskLevel.HIGH) == [ApprovalType.PLAN, ApprovalType.FINAL]
-    assert approval_requirements(RiskLevel.SEVERE) == [ApprovalType.PLAN, ApprovalType.FINAL]
+    # SEVERE is blocked from executing entirely, so no approvals are required.
+    assert approval_requirements(RiskLevel.SEVERE) == []
 
 
 def test_request_and_approve() -> None:
@@ -89,3 +90,26 @@ def test_audit_log_records_actions_without_duplicates() -> None:
     assert [entry.action for entry in manager.audit_log()] == ["requested", "approved"]
     manager.resolve(approval.approval_id, approved=True, resolved_by="owner", reason="ok")
     assert len(manager.audit_log()) == 2  # idempotent re-resolve is not re-audited
+
+
+def test_reload_restores_approved_approvals_after_restart() -> None:
+    """P0-2: a fresh manager hydrated from persisted approvals passes the gate."""
+    original = ApprovalManager()
+    approval = original.request(task_id="t1", approval_type=ApprovalType.FINAL, reason="r")
+    original.resolve(approval.approval_id, approved=True, resolved_by="owner")
+    persisted = original.get(approval.approval_id)  # the resolved state that would be saved
+
+    revived = ApprovalManager()
+    revived.reload([persisted])
+    revived.assert_approvals_complete("t1", RiskLevel.MEDIUM)  # must not raise
+    assert revived.get(approval.approval_id).status is ApprovalStatus.APPROVED
+
+
+def test_reload_keeps_pending_approvals_blocking() -> None:
+    original = ApprovalManager()
+    approval = original.request(task_id="t1", approval_type=ApprovalType.FINAL, reason="r")
+
+    revived = ApprovalManager()
+    revived.reload([approval])
+    with pytest.raises(ApprovalRequiredError):
+        revived.assert_approvals_complete("t1", RiskLevel.MEDIUM)

@@ -112,7 +112,7 @@ def test_approval_flow_via_api(live: str) -> None:
         ).json()["id"]
         client.post(f"{live}/api/v1/tasks/{task_id}/start")
 
-        # The orchestrator requests PLAN+FINAL approvals and pauses at WAITING.
+        # Two-stage flow (P1-5): PLAN approval first, then FINAL after review.
         for _ in range(50):
             status = client.get(f"{live}/api/v1/tasks/{task_id}").json()["status"]
             if status == "WAITING_PLAN_APPROVAL":
@@ -120,14 +120,32 @@ def test_approval_flow_via_api(live: str) -> None:
             time.sleep(0.05)
         assert status == "WAITING_PLAN_APPROVAL"
 
-        approvals = client.get(f"{live}/api/v1/tasks/{task_id}/approvals").json()
-        assert len(approvals) == 2  # PLAN + FINAL
-        for approval in approvals:
-            response = client.post(
-                f"{live}/api/v1/approvals/{approval['id']}/approve",
-                json={"approved": True, "resolved_by": "owner", "reason": "ok"},
-            )
-            assert response.status_code == 200
+        plan_approvals = client.get(f"{live}/api/v1/tasks/{task_id}/approvals").json()
+        assert len(plan_approvals) == 1  # PLAN only at this gate
+        response = client.post(
+            f"{live}/api/v1/approvals/{plan_approvals[0]['id']}/approve",
+            json={"approved": True, "resolved_by": "owner", "reason": "ok"},
+        )
+        assert response.status_code == 200
+
+        # Execution + review happen, then the task waits for FINAL approval.
+        for _ in range(50):
+            status = client.get(f"{live}/api/v1/tasks/{task_id}").json()["status"]
+            if status == "WAITING_FINAL_APPROVAL":
+                break
+            time.sleep(0.05)
+        assert status == "WAITING_FINAL_APPROVAL"
+
+        final_approvals = client.get(f"{live}/api/v1/tasks/{task_id}/approvals").json()
+        assert len(final_approvals) == 2  # approved PLAN + pending FINAL
+        pending_final = next(
+            approval for approval in final_approvals if approval["approval_type"] == "final"
+        )
+        response = client.post(
+            f"{live}/api/v1/approvals/{pending_final['id']}/approve",
+            json={"approved": True, "resolved_by": "owner", "reason": "ok"},
+        )
+        assert response.status_code == 200
 
         for _ in range(50):
             status = client.get(f"{live}/api/v1/tasks/{task_id}").json()["status"]

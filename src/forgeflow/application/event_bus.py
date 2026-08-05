@@ -32,7 +32,12 @@ class EventBus:
         return queue
 
     def unsubscribe(self, task_id: str, queue: asyncio.Queue[TaskEvent]) -> None:
-        self._subscribers.get(task_id, set()).discard(queue)
+        subscribers = self._subscribers.get(task_id)
+        if subscribers is None:
+            return
+        subscribers.discard(queue)
+        if not subscribers:
+            self._subscribers.pop(task_id, None)
 
     def publish(self, task_id: str, event_type: str, payload: dict[str, Any] | None = None) -> TaskEvent:
         event = TaskEvent(

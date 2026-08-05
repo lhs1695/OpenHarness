@@ -13,6 +13,29 @@ from forgeflow.application.task_orchestrator import TaskOrchestrator
 from forgeflow.domain.approval import ApprovalManager, ApprovalResolution
 from forgeflow.domain.policy import RepositoryPolicy
 from forgeflow.domain.risk import RiskInputs, RiskScorer
+
+# Tags that hint a change is schema/migration or public-API related (P0-3).
+_SCHEMA_TAGS = frozenset({"migration", "schema", "ddl", "db", "database"})
+_PUBLIC_API_TAGS = frozenset({"api", "public_api", "interface", "contract", "compat"})
+
+
+def _risk_inputs_from_spec(spec: CreateTaskInput) -> RiskInputs:
+    """Derive pre-execution risk facts from the task definition (P0-3).
+
+    Without this, creation-time risk was always 0 because the rules only saw an
+    empty ``RiskInputs`` — the approval/risk gating was effectively disabled.
+    Execution-time facts (changed paths) still need the executor's feedback.
+    """
+    tags = {tag.strip().lower() for tag in spec.risk_tags}
+    is_docs_or_tests = spec.task_type in ("docs", "test")
+    criteria_text = " ".join(spec.acceptance_criteria).lower()
+    has_test_hint = "test" in criteria_text or "pytest" in criteria_text or "测试" in criteria_text
+    return RiskInputs(
+        has_schema_or_migration_change=bool(tags & _SCHEMA_TAGS),
+        has_public_api_change=bool(tags & _PUBLIC_API_TAGS),
+        missing_tests=not is_docs_or_tests and spec.task_type != "verify" and not has_test_hint,
+        is_docs_or_tests_only=is_docs_or_tests,
+    )
 from forgeflow.errors import ForgeFlowError
 from forgeflow.infrastructure.store import StoredApproval, StoredTask, TaskStore, to_stored_approval
 from forgeflow.orchestration.state_machine import TaskEvent, TaskState, TaskStateMachine
@@ -25,6 +48,18 @@ class TaskNotFoundError(ForgeFlowError):
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def reload_approvals_from_store(approvals: ApprovalManager, store: TaskStore) -> None:
+    """Hydrate the in-memory ApprovalManager from persisted approvals (P0-2).
+
+    Call after building the service so already-requested/approved approvals
+    survive a restart; otherwise tasks waiting at an approval gate would be
+    stranded because the manager starts empty.
+    """
+    from forgeflow.infrastructure.store import from_stored_approval
+
+    approvals.reload([from_stored_approval(record) for record in store.list_all_approvals()])
 
 
 @dataclass(frozen=True)
@@ -58,14 +93,13 @@ class TaskService:
         self._orchestrator = orchestrator
         self._approvals = approvals
         self._policy_provider = policy_provider
-        self._processed_commands: set[str] = set()
 
     def create_task(self, spec: CreateTaskInput) -> StoredTask:
         policy = self._policy_provider.get(spec.repository)
         risk = (
             spec.initial_risk_score
             if spec.initial_risk_score is not None
-            else RiskScorer().score(RiskInputs(), policy).score
+            else RiskScorer().score(_risk_inputs_from_spec(spec), policy).score
         )
         task = StoredTask(
             id=spec.task_id or f"task_{uuid4().hex[:8]}",
@@ -113,12 +147,16 @@ class TaskService:
         return self.get_task(task_id)
 
     def start_task_message(self, task_id: str, *, command_id: str | None = None) -> None:
-        """Start a task. Idempotent under repeated command_id (Celery re-delivery)."""
+        """Start a task. Idempotent under repeated command_id (Celery re-delivery).
+
+        Dedup is persisted (P2-9) so a re-delivered command id after a restart is
+        still a no-op.
+        """
         self.get_task(task_id)
         if command_id:
-            if command_id in self._processed_commands:
+            if self._store.is_processed(command_id):
                 return  # idempotent no-op
-            self._processed_commands.add(command_id)
+            self._store.mark_processed(command_id)
         try:
             asyncio.get_running_loop()
         except RuntimeError:
@@ -129,9 +167,9 @@ class TaskService:
     def cancel_task(self, task_id: str, *, command_id: str | None = None) -> StoredTask:
         task = self.get_task(task_id)
         if command_id:
-            if command_id in self._processed_commands:
+            if self._store.is_processed(command_id):
                 return task
-            self._processed_commands.add(command_id)
+            self._store.mark_processed(command_id)
         self._orchestrator.cancel(task_id)
         return self.get_task(task_id)
 
@@ -145,7 +183,10 @@ class TaskService:
         stored = self.get_task(task_id)
         machine = TaskStateMachine(TaskState(stored.status))
         if machine.state is TaskState.PAUSED:
+            # Restart semantics: the executor's worktree is cleaned up on pause,
+            # so a resumed task re-runs the pipeline from READY (P1-4).
             self._apply_transition(stored, machine, TaskEvent.RESUME, resume_target=TaskState.READY)
+            self._orchestrator.resume(task_id)
         return self.get_task(task_id)
 
     def approve(self, approval_id: str, *, approved: bool, resolved_by: str, reason: str | None = None) -> ApprovalResolution:
@@ -197,6 +238,12 @@ class TaskService:
         try:
             machine.apply(event, resume_target=resume_target)
         except ForgeFlowError:
+            # Rejected user-driven transition is recorded, not silently ignored (P1-7).
+            self._event_bus.publish(
+                stored.id,
+                "illegal_transition",
+                {"from": previous.value, "event": event.value},
+            )
             return
         self._event_bus.publish(
             stored.id,

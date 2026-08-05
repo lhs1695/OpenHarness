@@ -72,9 +72,11 @@ def approval_requirements(risk_level: RiskLevel) -> list[ApprovalType]:
     """Required approvals for a risk level (spec §4.4).
 
     SEVERE tasks are only allowed to produce a plan and never execute write
-    operations, so the requirements below apply to MEDIUM/HIGH.
+    operations, so they require no approvals (the orchestrator blocks them from
+    executing altogether).  MEDIUM requires final approval; HIGH requires both
+    plan and final approval.
     """
-    if risk_level is RiskLevel.LOW:
+    if risk_level is RiskLevel.LOW or risk_level is RiskLevel.SEVERE:
         return []
     if risk_level is RiskLevel.MEDIUM:
         return [ApprovalType.FINAL]
@@ -167,6 +169,21 @@ class ApprovalManager:
             )
         )
         return resolution
+
+    def reload(self, approvals: list[Approval]) -> None:
+        """Hydrate in-memory state from persisted approvals (P0-2 restart recovery)."""
+        self._approvals = {approval.approval_id: approval for approval in approvals}
+        self._resolutions = {
+            approval.approval_id: ApprovalResolution(
+                approval_id=approval.approval_id,
+                approved=approval.status is ApprovalStatus.APPROVED,
+                resolved_by=approval.resolved_by or "",
+                resolved_at=approval.resolved_at or _now_iso(),
+                reason=approval.resolution_reason,
+            )
+            for approval in approvals
+            if approval.status is not ApprovalStatus.PENDING
+        }
 
     def get(self, approval_id: str) -> Approval:
         approval = self._approvals.get(approval_id)

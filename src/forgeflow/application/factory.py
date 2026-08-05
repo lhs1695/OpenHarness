@@ -8,7 +8,11 @@ from forgeflow.api.auth import ApiKeyAuthenticator
 from forgeflow.application.event_bus import EventBus
 from forgeflow.application.executors import LocalTaskExecutor, TaskExecutor
 from forgeflow.application.task_orchestrator import TaskOrchestrator
-from forgeflow.application.task_service import PolicyProvider, TaskService
+from forgeflow.application.task_service import (
+    PolicyProvider,
+    TaskService,
+    reload_approvals_from_store,
+)
 from forgeflow.domain.approval import ApprovalManager
 from forgeflow.domain.policy import RepositoryPolicy
 from forgeflow.infrastructure.database import (
@@ -85,6 +89,7 @@ def create_service_from_env() -> TaskService:
     store = TaskStore(session)
     event_bus = EventBus()
     approvals = ApprovalManager()
+    reload_approvals_from_store(approvals, store)
 
     required_commands = [
         command.strip()

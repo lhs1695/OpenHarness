@@ -81,7 +81,7 @@ class WorktreeExecutionBackend:
         duration_ms = int((loop.time() - started) * 1000)
         result = ExecutionResult(
             command=command,
-            returncode=self._process.returncode or 0,
+            returncode=self._process.returncode if self._process.returncode is not None else 0,
             stdout=stdout_bytes.decode(errors="replace"),
             stderr=stderr_bytes.decode(errors="replace"),
             duration_ms=duration_ms,
@@ -120,6 +120,9 @@ class WorktreeExecutionBackend:
     async def cleanup(self) -> None:
         if self._info is None:
             return
+        if self._process is not None and self._process.returncode is None:
+            await self._terminate(force=True)
+            self._process = None
         await self._manager.remove_worktree(self._info.slug)
         self._info = None
 

@@ -4,7 +4,7 @@
 
 ## 1. 一句话状态
 
-**M0–M10 全部完成，Agent 驱动在线评测上线，Phase 2 计划项全部落地；Phase 3（生产化+数据闭环）主流程完成（除 A3 跨模型保留）：A1 真实轨迹回流（400 样本，检索 75%→100%）、A2 真实数据集（21 个真实 issue）、A4 中文/语义检索、B1 真实 PR（含 orchestrator 接线）、B2 预算、B3 多仓库、B4 认证、B5 command_results 落 trace（分支 `feat/phase3`）。**
+**M0–M10 全部完成，Agent 驱动在线评测上线，Phase 2 计划项全部落地；Phase 3（生产化+数据闭环）主流程完成（除 A3 跨模型保留）+ 全面代码审计 P0–P3 修复全部落地：A1 真实轨迹回流（400 样本，检索 75%→100%）、A2 真实数据集（21 个真实 issue）、A4 中文/语义检索、B1 真实 PR（含 orchestrator 接线）、B2 预算、B3 多仓库、B4 认证、B5 command_results 落 trace，以及 SEVERE 执行守卫/审批持久化/风险评分真实化/两阶段审批/统一 trace 模型等加固（分支 `feat/phase3`）。**
 
 ## 2. 里程碑
 

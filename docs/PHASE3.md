@@ -6,7 +6,7 @@
 
 ## 本轮执行状态（2026-08-05，分支 `feat/phase3`）
 
-**A1/A2/B1/B2/B3/B4/B5/A4 全部完成**（A3 跨模型矩阵按用户要求保留不做）。质量基线：**240 passed / 1 skipped / 7 deselected**，ruff clean，mypy 57 源文件 clean。
+**A1/A2/B1/B2/B3/B4/B5/A4 全部完成**（A3 跨模型矩阵按用户要求保留不做）+ **全面代码审计 P0–P3 修复全部落地**（SEVERE 执行守卫、审批持久化、风险评分真实化、两阶段审批、resume 修复、统一 trace 模型、命令去重持久化等）。质量基线：**247 passed / 1 skipped / 7 deselected**，ruff clean，mypy 57 源文件 clean。
 
 - **A1 真实评测轨迹回流**：✅ 代码+测试+在线验收完成。真实样本 `evals/data/real-feedback.json`（400 样本 / 369 success / 31 failure）。before/after：不带检索 **75%（6/8）** → 带真实反馈检索 **100%（8/8）**（单次运行，含模型随机性，如实记录）。
 - **B2 预算与成本治理**：✅ `ModelDrivenTaskExecutor` 接入 `BudgetTracker`（policy+env 派生预算），超限返回 `budget_exceeded`，orchestrator 落 `BUDGET_EXCEEDED`。

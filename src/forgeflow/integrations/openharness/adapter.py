@@ -14,7 +14,8 @@ from typing import Protocol
 
 from forgeflow.domain.task import DevelopmentTask
 from forgeflow.errors import AdapterError, MaxTurnsExceededError
-from forgeflow.integrations.openharness.event_mapper import TraceEvent, map_stream_event
+from forgeflow.integrations.openharness.event_mapper import map_stream_event
+from forgeflow.trace.events import SpanEvent
 from openharness.engine.query import MaxTurnsExceeded
 from openharness.engine.stream_events import (
     AssistantTextDelta,
@@ -48,7 +49,7 @@ class TaskPlan:
     tool_call_count: int = 0
     tool_error_count: int = 0
     duration_ms: int = 0
-    trace: list[TraceEvent] = field(default_factory=list)
+    trace: list[SpanEvent] = field(default_factory=list)
 
 
 SECTION_HEADERS = ("Target Files", "Steps", "Risk Points", "Test Plan")
@@ -84,7 +85,7 @@ def extract_plan(
     task: DevelopmentTask,
     *,
     text: str,
-    events: list[TraceEvent],
+    events: list[SpanEvent],
     tool_call_count: int,
     tool_error_count: int,
     duration_ms: int,
@@ -103,7 +104,7 @@ def extract_plan(
 
     tokens = {"input_tokens": 0, "output_tokens": 0}
     for event in events:
-        if event.event_type == "model_turn_complete" and event.token_usage:
+        if event.event_type == "model_turn_completed" and event.token_usage:
             tokens["input_tokens"] += event.token_usage.get("input_tokens", 0)
             tokens["output_tokens"] += event.token_usage.get("output_tokens", 0)
 
@@ -132,7 +133,7 @@ class OpenHarnessAdapter:
         """Run a planning turn against ``engine`` and return a structured plan."""
         prompt = self._prompt_builder(task)
         started = time.monotonic()
-        events: list[TraceEvent] = []
+        events: list[SpanEvent] = []
         text_parts: list[str] = []
         tool_calls = 0
         tool_errors = 0

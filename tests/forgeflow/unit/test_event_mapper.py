@@ -1,6 +1,7 @@
 """Event mapper unit tests."""
 
-from forgeflow.integrations.openharness.event_mapper import TraceEvent, map_stream_event
+from forgeflow.integrations.openharness.event_mapper import map_stream_event
+from forgeflow.trace.events import SpanEvent
 from openharness.api.usage import UsageSnapshot
 from openharness.engine.messages import ConversationMessage, TextBlock
 from openharness.engine.stream_events import (
@@ -30,7 +31,7 @@ def test_maps_turn_complete_usage() -> None:
         )
     )
     assert event is not None
-    assert event.event_type == "model_turn_complete"
+    assert event.event_type == "model_turn_completed"
     assert event.token_usage == {"input_tokens": 10, "output_tokens": 5}
 
 
@@ -81,6 +82,6 @@ def test_now_is_overridable() -> None:
 
 
 def test_trace_event_is_dataclass() -> None:
-    event = TraceEvent(event_id="e1", event_type="status", timestamp="t")
+    event = SpanEvent(event_id="e1", event_type="status", span_id="s1", timestamp="t")
     assert event.status == "ok"
     assert event.token_usage is None

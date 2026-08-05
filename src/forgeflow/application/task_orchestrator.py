@@ -8,19 +8,27 @@ skips already-completed transitions (state machine idempotency).
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 from forgeflow.application.event_bus import EventBus
-from forgeflow.application.executors import ExecutionOutcome, TaskExecutor
+from forgeflow.application.executors import (
+    ExecutionOutcome,
+    TaskExecutor,
+    _changed_files_from_diff,
+)
 from forgeflow.domain.approval import (
     ApprovalManager,
     ApprovalRequiredError,
+    ApprovalStatus,
     ApprovalType,
     approval_requirements,
 )
 from forgeflow.domain.risk import RiskLevel, risk_level
 from forgeflow.errors import IllegalTransitionError
 from forgeflow.infrastructure.store import StoredTask, TaskStore, to_stored_approval
+from forgeflow.orchestration.delivery import Patch, make_patch
 from forgeflow.orchestration.state_machine import TaskEvent, TaskState, TaskStateMachine
 from forgeflow.trace.collector import TraceCollector
 from forgeflow.trace.repository import TraceRepository
@@ -81,56 +89,137 @@ class TaskOrchestrator:
         run_id = f"run_{task_id}"
         self._collector = TraceCollector(task_id=task_id, run_id=run_id)
         machine = TaskStateMachine(TaskState(stored.status))
+
+        # Pipeline to PLANNED (idempotent skips let this resume from any point).
         self._advance(stored, machine, TaskEvent.VALIDATED)
         self._advance(stored, machine, TaskEvent.PREPARE_ENVIRONMENT)
         self._advance(stored, machine, TaskEvent.ENVIRONMENT_READY)
         self._advance(stored, machine, TaskEvent.PLAN_GENERATED)
 
         risk = risk_level(stored.initial_risk_score)
-        if approval_requirements(risk):
-            if not self._approvals_complete(stored, risk):
-                self._request_approvals(stored, approval_requirements(risk))
+        required = approval_requirements(risk)
+
+        # P0-1: SEVERE risk only produces a plan — never executes writes (§4.4).
+        if risk is RiskLevel.SEVERE:
+            self._event_bus.publish(
+                stored.id,
+                "severe_blocked",
+                {"reason": "SEVERE 风险任务只允许生成方案，禁止执行写操作"},
+            )
+            self._advance(stored, machine, TaskEvent.FAIL)
+            self._persist(stored, machine)
+            self._persist_trace(task_id, run_id)
+            return
+
+        # Plan-approval gate (HIGH). Only PLAN is required here.
+        if ApprovalType.PLAN in required:
+            if not self._type_approved(stored, ApprovalType.PLAN):
+                self._request_approvals(stored, [ApprovalType.PLAN])
                 self._advance(stored, machine, TaskEvent.APPROVAL_NEEDED)
                 self._persist(stored, machine)
                 self._persist_trace(task_id, run_id)
-                return  # paused at WAITING_PLAN_APPROVAL until approvals resolve
+                return  # waits at WAITING_PLAN_APPROVAL
             if machine.state is TaskState.WAITING_PLAN_APPROVAL:
                 self._advance(stored, machine, TaskEvent.PLAN_APPROVED)
-        self._advance(stored, machine, TaskEvent.START_EXECUTION)
 
-        try:
-            outcome = await self._executor.execute(stored)
-        except asyncio.CancelledError:
-            self._advance(stored, machine, TaskEvent.CANCEL)
-            self._advance(stored, machine, TaskEvent.CANCEL_CONFIRMED)
-            self._persist(stored, machine)
-            self._persist_trace(task_id, run_id)
-            raise
-        self._record_commands(outcome)
-        if outcome.status == "failed":
-            self._advance(stored, machine, TaskEvent.FAIL)
-        elif outcome.status == "budget_exceeded":
-            self._advance(stored, machine, TaskEvent.BUDGET_EXCEEDED)
-        else:
+        # Execute exactly once — resume after final approval must not re-run it.
+        if machine.state in (TaskState.PLANNED, TaskState.EXECUTING):
+            self._advance(stored, machine, TaskEvent.START_EXECUTION)
+            try:
+                outcome = await self._executor.execute(stored)
+            except asyncio.CancelledError:
+                self._advance(stored, machine, TaskEvent.CANCEL)
+                self._advance(stored, machine, TaskEvent.CANCEL_CONFIRMED)
+                self._persist(stored, machine)
+                self._persist_trace(task_id, run_id)
+                raise
+            self._record_commands(outcome)
+            if outcome.status == "failed":
+                self._advance(stored, machine, TaskEvent.FAIL)
+                self._persist(stored, machine)
+                self._persist_trace(task_id, run_id)
+                return
+            if outcome.status == "budget_exceeded":
+                self._advance(stored, machine, TaskEvent.BUDGET_EXCEEDED)
+                self._persist(stored, machine)
+                self._persist_trace(task_id, run_id)
+                return
             self._advance(stored, machine, TaskEvent.EXECUTION_FINISHED)
             self._advance(stored, machine, TaskEvent.VERIFICATION_FINISHED)
+            if outcome.patch is not None:
+                self._persist_patch(task_id, run_id, outcome.patch)
+
+        # Final-approval gate (MEDIUM/HIGH) after review (P1-5 两阶段).
+        if ApprovalType.FINAL in required and machine.state in (
+            TaskState.REVIEWING,
+            TaskState.WAITING_FINAL_APPROVAL,
+        ):
+            if not self._type_approved(stored, ApprovalType.FINAL):
+                self._request_approvals(stored, [ApprovalType.FINAL])
+                self._advance(stored, machine, TaskEvent.APPROVAL_NEEDED)
+                self._persist(stored, machine)
+                self._persist_trace(task_id, run_id)
+                return  # waits at WAITING_FINAL_APPROVAL
+            if machine.state is TaskState.WAITING_FINAL_APPROVAL:
+                self._advance(stored, machine, TaskEvent.FINAL_APPROVED)
+
+        # Deliver.
+        if machine.state in (TaskState.REVIEWING, TaskState.DELIVERING):
             self._advance(stored, machine, TaskEvent.REVIEW_FINISHED)
             self._advance(stored, machine, TaskEvent.DELIVERED)
-            self._deliver(stored, outcome)
+            self._deliver(stored)
         self._persist(stored, machine)
         self._persist_trace(task_id, run_id)
 
-    def _deliver(self, stored: StoredTask, outcome: ExecutionOutcome) -> None:
+    def _type_approved(self, stored: StoredTask, approval_type: ApprovalType) -> bool:
+        candidates = [
+            approval
+            for approval in self._approvals.approvals_for(stored.id)
+            if approval.approval_type is approval_type
+        ]
+        return bool(candidates) and all(
+            approval.status is ApprovalStatus.APPROVED for approval in candidates
+        )
+
+    def _persist_patch(self, task_id: str, run_id: str, patch: Patch) -> None:
+        """Persist the delivery diff so it survives the final-approval resume (P1-5)."""
+        self._store.append_event(
+            task_id=task_id,
+            run_id=run_id,
+            event_type="patch_ready",
+            payload={"repository": patch.repository, "diff": patch.diff},
+            event_id=uuid4().hex,
+            occurred_at=datetime.now(UTC),
+        )
+
+    def _stored_diff(self, task_id: str) -> str:
+        for item in self._store.list_events(task_id):
+            if item["event_type"] == "patch_ready":
+                payload = item.get("payload")
+                diff = payload.get("diff") if isinstance(payload, dict) else None
+                if isinstance(diff, str):
+                    return diff
+        return ""
+
+    def _deliver(self, stored: StoredTask) -> None:
         """Submit a real Draft PR when a delivery service and a real diff exist (B1).
 
         Delivery failures are recorded as trace events, never crash the pipeline.
         """
-        if self._delivery is None or outcome.patch is None:
+        if self._delivery is None:
             return
+        diff = self._stored_diff(stored.id)
+        if not diff:
+            return
+        patch = make_patch(
+            repository=stored.repository,
+            diff=diff,
+            changed_files=_changed_files_from_diff(diff),
+        )
         try:
             pr = self._delivery.create_draft_pr(
                 repository=stored.repository,
-                patch=outcome.patch,
+                patch=patch,
                 head=f"forgeflow/{stored.id}",
             )
         except Exception as exc:  # noqa: BLE001 — delivery is best-effort

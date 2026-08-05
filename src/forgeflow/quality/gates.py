@@ -7,12 +7,11 @@ it can be unit-tested without an execution backend.
 
 from __future__ import annotations
 
-import fnmatch
 import re
 from dataclasses import dataclass, field
 from enum import Enum
 
-from forgeflow.domain.policy import RepositoryPolicy
+from forgeflow.domain.policy import RepositoryPolicy, path_matches
 from forgeflow.execution.base import ExecutionResult
 from forgeflow.quality.reviewer import ReviewReport
 
@@ -36,22 +35,9 @@ class GateResult:
     details: dict[str, object] = field(default_factory=dict)
 
 
-def _matches_any(path: str, patterns: list[str]) -> bool:
-    normalized = path.replace("\\", "/")
-    for pattern in patterns:
-        pat = pattern.replace("\\", "/").rstrip("/")
-        if fnmatch.fnmatch(normalized, pat):
-            return True
-        if fnmatch.fnmatch(normalized, pat + "/**"):
-            return True
-        if normalized.startswith(pat + "/"):
-            return True
-    return False
-
-
 def forbidden_paths_gate(changed_files: list[str], policy: RepositoryPolicy) -> GateResult:
     """Hard: no change may touch a policy-forbidden path."""
-    touched = [path for path in changed_files if _matches_any(path, policy.forbidden_paths)]
+    touched = [path for path in changed_files if path_matches(path, policy.forbidden_paths)]
     if touched:
         return GateResult(
             "forbidden_paths",
@@ -99,7 +85,7 @@ def test_masking_gate(changed_files: list[str], *, task_type: str) -> GateResult
 
 
 _SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"(?i)\b(api[_-]?key|secret|token|password|passwd)\s*[:=]\s*['\"]?[\w\-]{12,}"),
+    re.compile(r"(?i)\b(api[_-]?key|secret|token|password|passwd)\s*[:=]\s*['\"]?[A-Za-z0-9_\-]{12,}"),
     re.compile(r"(?i)\bsk-[A-Za-z0-9]{16,}"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
 )

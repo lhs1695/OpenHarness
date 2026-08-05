@@ -9,7 +9,11 @@ import pytest
 from forgeflow.application.event_bus import EventBus
 from forgeflow.application.executors import ExecutionOutcome
 from forgeflow.application.task_orchestrator import TaskOrchestrator
-from forgeflow.application.task_service import PolicyProvider, TaskService
+from forgeflow.application.task_service import (
+    PolicyProvider,
+    TaskService,
+    reload_approvals_from_store,
+)
 from forgeflow.domain.approval import ApprovalManager
 from forgeflow.infrastructure.database import (
     create_database_engine,
@@ -43,6 +47,7 @@ def make_service(tmp_path) -> Callable[..., TaskService]:
         store = TaskStore(session)
         event_bus = EventBus()
         approvals = ApprovalManager()
+        reload_approvals_from_store(approvals, store)
         orchestrator = TaskOrchestrator(
             store=store,
             event_bus=event_bus,

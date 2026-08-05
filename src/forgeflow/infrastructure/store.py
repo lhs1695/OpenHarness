@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from forgeflow.domain.approval import Approval
+from forgeflow.domain.approval import Approval, ApprovalStatus, ApprovalType
+from forgeflow.errors import TaskAlreadyExistsError
 from forgeflow.infrastructure.models import (
     ApprovalRecord,
+    ProcessedCommandRecord,
     RunRecord,
     TaskRecord,
     TraceEventRecord,
@@ -85,6 +88,37 @@ def to_stored_approval(approval: Approval) -> StoredApproval:
     )
 
 
+def from_stored_approval(stored: StoredApproval) -> Approval:
+    """Rebuild a domain Approval from a persisted record (P0-2 restart recovery)."""
+    return Approval(
+        approval_id=stored.id,
+        task_id=stored.task_id,
+        run_id=stored.run_id or None,
+        approval_type=ApprovalType(stored.approval_type),
+        status=ApprovalStatus(stored.status),
+        requested_reason=stored.requested_reason,
+        requested_at=stored.requested_at.isoformat(),
+        resolved_by=stored.resolved_by,
+        resolved_at=stored.resolved_at.isoformat() if stored.resolved_at else None,
+        resolution_reason=stored.resolution_reason,
+    )
+
+
+def _approval_from_record(record: ApprovalRecord) -> StoredApproval:
+    return StoredApproval(
+        id=record.id,
+        task_id=record.task_id,
+        run_id=record.run_id,
+        approval_type=record.approval_type,
+        status=record.status,
+        requested_reason=record.requested_reason,
+        requested_at=record.requested_at,
+        resolved_by=record.resolved_by,
+        resolved_at=record.resolved_at,
+        resolution_reason=record.resolution_reason,
+    )
+
+
 def _to_stored(record: TaskRecord) -> StoredTask:
     return StoredTask(
         id=record.id,
@@ -129,7 +163,11 @@ class TaskStore:
                 updated_at=task.updated_at,
             )
         )
-        self._session.commit()
+        try:
+            self._session.commit()
+        except IntegrityError as exc:
+            self._session.rollback()
+            raise TaskAlreadyExistsError(task.id) from exc
         return task
 
     def get_task(self, task_id: str) -> StoredTask | None:
@@ -154,6 +192,7 @@ class TaskStore:
             record.status = status
         if final_risk_score is not None:
             record.final_risk_score = final_risk_score
+        record.updated_at = datetime.now(UTC)
         self._session.commit()
         return _to_stored(record)
 
@@ -177,6 +216,21 @@ class TaskStore:
                 payload=_dump(payload),
             )
         )
+        self._session.commit()
+
+    def bulk_append_events(self, events: list[dict[str, Any]]) -> None:
+        """Insert many trace events in a single commit (P2-10, avoids write amplification)."""
+        for event in events:
+            self._session.add(
+                TraceEventRecord(
+                    id=event["event_id"],
+                    task_id=event["task_id"],
+                    run_id=event["run_id"],
+                    event_type=event["event_type"],
+                    occurred_at=event["occurred_at"],
+                    payload=_dump(event["payload"]),
+                )
+            )
         self._session.commit()
 
     def list_events(self, task_id: str) -> list[dict[str, Any]]:
@@ -242,22 +296,19 @@ class TaskStore:
             self._session.commit()
         return approval
 
+    def mark_processed(self, command_id: str) -> None:
+        self._session.merge(ProcessedCommandRecord(id=command_id))
+        self._session.commit()
+
+    def is_processed(self, command_id: str) -> bool:
+        return self._session.get(ProcessedCommandRecord, command_id) is not None
+
+    def list_all_approvals(self) -> list[StoredApproval]:
+        records = self._session.scalars(select(ApprovalRecord).order_by(ApprovalRecord.requested_at)).all()
+        return [_approval_from_record(record) for record in records]
+
     def list_approvals(self, task_id: str) -> list[StoredApproval]:
         records = self._session.scalars(
             select(ApprovalRecord).where(ApprovalRecord.task_id == task_id)
         ).all()
-        return [
-            StoredApproval(
-                id=record.id,
-                task_id=record.task_id,
-                run_id=record.run_id,
-                approval_type=record.approval_type,
-                status=record.status,
-                requested_reason=record.requested_reason,
-                requested_at=record.requested_at,
-                resolved_by=record.resolved_by,
-                resolved_at=record.resolved_at,
-                resolution_reason=record.resolution_reason,
-            )
-            for record in records
-        ]
+        return [_approval_from_record(record) for record in records]

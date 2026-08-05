@@ -6,13 +6,12 @@ reason, so a RiskScore always carries why it reached that value.
 
 from __future__ import annotations
 
-import fnmatch
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol
 
-from forgeflow.domain.policy import RepositoryPolicy
+from forgeflow.domain.policy import RepositoryPolicy, path_matches
 
 
 class RiskLevel(str, Enum):
@@ -57,17 +56,6 @@ class RiskRule(Protocol):
     def evaluate(self, inputs: RiskInputs, policy: RepositoryPolicy | None) -> RiskRuleResult: ...
 
 
-def _path_matches(path: str, pattern: str) -> bool:
-    """Match a path against a glob pattern (''/''-normalized, dir prefix aware)."""
-    normalized = path.replace("\\", "/")
-    pat = pattern.replace("\\", "/").rstrip("/")
-    if fnmatch.fnmatch(normalized, pat):
-        return True
-    if fnmatch.fnmatch(normalized, pat + "/**"):
-        return True
-    return normalized.startswith(pat + "/")
-
-
 class SensitiveModuleRule:
     """+20 when the change touches a repository sensitive path."""
 
@@ -77,9 +65,7 @@ class SensitiveModuleRule:
         if policy is None or not inputs.changed_paths or not policy.sensitive_paths:
             return RiskRuleResult(0, "")
         touched = [
-            path
-            for path in inputs.changed_paths
-            if any(_path_matches(path, pat) for pat in policy.sensitive_paths)
+            path for path in inputs.changed_paths if path_matches(path, policy.sensitive_paths)
         ]
         if touched:
             return RiskRuleResult(

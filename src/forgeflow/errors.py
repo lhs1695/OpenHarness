@@ -37,6 +37,10 @@ class IllegalTransitionError(ForgeFlowError):
     """A state-machine transition is not allowed from the current state."""
 
 
+class TaskAlreadyExistsError(ForgeFlowError):
+    """A task with the same id already exists."""
+
+
 class PathEscapeError(ForgeFlowError):
     """A resolved path is outside the task workspace."""
 

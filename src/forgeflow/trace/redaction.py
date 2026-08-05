@@ -8,7 +8,7 @@ from typing import Any
 _PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?i)\bsk-[A-Za-z0-9]{16,}"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
-    re.compile(r"(?i)\b(api[_-]?key|secret|token|password|passwd)\s*[:=]\s*['\"]?[\w\-]{8,}"),
+    re.compile(r"(?i)\b(api[_-]?key|secret|token|password|passwd)\s*[:=]\s*['\"]?[A-Za-z0-9_\-]{8,}"),
     re.compile(r"(?i)\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b"),
 )
 
