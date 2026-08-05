@@ -99,6 +99,14 @@ def build_app(service: TaskService) -> FastAPI:
             approval_id, ApprovalResolveRequest(approved=False, **request.model_dump(exclude={"approved"}))
         )
 
+    @app.get("/api/v1/tasks/{task_id}/timeline")
+    def task_timeline(task_id: str) -> list[dict[str, object]]:
+        return service.trace_timeline(task_id)
+
+    @app.get("/api/v1/tasks/{task_id}/trace")
+    def task_trace(task_id: str) -> str:
+        return service.export_trace_jsonl(task_id)
+
     @app.get("/api/v1/tasks/{task_id}/events")
     async def task_events(task_id: str) -> StreamingResponse:
         _get(task_id)

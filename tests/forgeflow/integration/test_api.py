@@ -135,3 +135,22 @@ def test_approval_flow_via_api(live: str) -> None:
                 break
             time.sleep(0.05)
         assert status == "COMPLETED"
+
+
+def test_timeline_and_trace_endpoints(live: str) -> None:
+    with httpx.Client(timeout=30) as client:
+        task_id = client.post(
+            f"{live}/api/v1/tasks", json={"repository": "r", "title": "t"}
+        ).json()["id"]
+        client.post(f"{live}/api/v1/tasks/{task_id}/start")
+        for _ in range(50):
+            if client.get(f"{live}/api/v1/tasks/{task_id}").json()["status"] == "COMPLETED":
+                break
+            time.sleep(0.05)
+
+        timeline = client.get(f"{live}/api/v1/tasks/{task_id}/timeline").json()
+        assert timeline
+        assert any(item["event_type"] == "task_state_changed" for item in timeline)
+
+        trace = client.get(f"{live}/api/v1/tasks/{task_id}/trace").text
+        assert "task_state_changed" in trace

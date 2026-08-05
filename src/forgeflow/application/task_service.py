@@ -16,6 +16,7 @@ from forgeflow.domain.risk import RiskInputs, RiskScorer
 from forgeflow.errors import ForgeFlowError
 from forgeflow.infrastructure.store import StoredApproval, StoredTask, TaskStore, to_stored_approval
 from forgeflow.orchestration.state_machine import TaskEvent, TaskState, TaskStateMachine
+from forgeflow.trace.repository import TraceRepository
 
 
 class TaskNotFoundError(ForgeFlowError):
@@ -171,6 +172,14 @@ class TaskService:
 
     def list_events(self, task_id: str) -> list[dict[str, object]]:
         return self._store.list_events(task_id)
+
+    def trace_timeline(self, task_id: str) -> list[dict[str, object]]:
+        self.get_task(task_id)
+        return TraceRepository(self._store).timeline(task_id)
+
+    def export_trace_jsonl(self, task_id: str) -> str:
+        self.get_task(task_id)
+        return TraceRepository(self._store).export_jsonl(task_id)
 
     def _apply_transition(
         self,
