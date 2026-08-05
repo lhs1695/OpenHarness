@@ -39,6 +39,24 @@ Task Trace (SpanEvent)
 
 **对比实验方法**：同一策略分别在不带 / 带检索上下文下运行同一数据集，比较完成率与测试通过率。当前本地 `PipelineStrategy` 不消费上下文；对比实验在 Agent 驱动的在线策略上线后执行（M9→M10 端到端验证）。
 
+## 3.5 实测报告（2026-08-05）
+
+> 存档：`evals/reports/2026-08-05-default-plan_gates.md`（CLI `--output` 生成，UTF-8）。
+
+- 数据集：`default` v2026-08-05（8 案例：billing-smoke 6 + cart-smoke 2）
+- 策略：`plan_gates`（本地确定性策略）
+
+| 指标 | 值 |
+|---|---|
+| 完成率 | 25.00%（2/8） |
+| 测试通过率 | 25.00% |
+| 基线失败 | 6 |
+| 策略失败 | 0 |
+| 平均耗时 | ~1.1s |
+
+- 通过：`cart-001` / `cart-002`（干净仓库 verify 案例，测试通过）；
+- 基线失败：`billing-001..006`（`billing-service` fixture 含幂等 bug，`pytest` 失败 → `required_commands` 硬门禁失败）。**这是正确信号**：bug 未修复时应失败；Agent 驱动策略修复后同一批案例应翻转为通过。
+
 ## 4. 复现路径（spec §12.4）
 
 ```bash

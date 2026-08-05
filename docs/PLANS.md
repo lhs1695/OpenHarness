@@ -17,7 +17,7 @@
 | M7 全链路 Trace | ✅ 实现完成（待独立审查） | `milestone/m7-trace` | `trace/*` |
 | M8 评测平台 | ✅ 实现完成（待独立审查） | `milestone/m8-eval` | `evaluation/*` + `evals/` 数据集 + fixture |
 | M9 数据回流与经验闭环 | ✅ 实现完成（待独立审查） | `milestone/m9-feedback` | `evaluation/{feedback,registry,retrieval}.py` |
-| M10 包装与维护 | 待开始 | `milestone/m10-packaging` | README、CI、40+ 测试 |
+| M10 包装与维护 | ✅ 实现完成（待独立审查） | `milestone/m10-packaging` | README、docs、CI |
 
 ## M1 — 最小适配层与垂直链路（实现完成，待独立审查）
 
@@ -191,10 +191,26 @@ pyrightconfig.json                                       # extraPaths=src（编�
 
 **验收对应**：真实样本可查看（`TraceSampleBuilder` 输出含脱敏内容 + provenance）；样本可溯源到任务与版本（task_id/run_id/provenance）；可做"历史经验检索前后"对比（`retrieval_comparison` + `build_retrieval_context`，Agent 驱动策略上线后执行）；不夸大已做模型后训练（文档明确"仅用于后续评测与检索"）。
 
-## M10 — 包装与维护
+## M10 — 包装与维护（实现完成，待独立审查）
 
-- README、架构图、演示视频、API 文档、评测报告、安全文档、CI、40+ 测试、复盘、20 面试题。
-- 验收：空环境可部署；端到端演示；评测可复现；简历指标有脚本支撑；清晰区分上游/个人贡献。
+**交付**：
+- `README.md`（根，替换为 ForgeFlow 项目 README：定位/特性/快速开始/评测/上游边界/文档索引）。
+- `docs/ARCHITECTURE.md` — 新增 **Mermaid** 架构总览 flowchart + 任务数据流 sequenceDiagram（内嵌）；`docs/STATE_MACHINE.md` — 新增 **Mermaid** stateDiagram（含中断/审批分支）。
+- `docs/API.md` — 全部任务/审批/Trace/SSE 端点 + 请求响应示例 + 错误码。
+- `docs/EVALUATION.md` — 新增实测报告（`default` 数据集，`plan_gates`，完成率 25%，含基线失败分类）。
+- `docs/SECURITY.md` — 威胁模型 + 已实现防护（脱敏/路径边界/命令控制/门禁/只读 Reviewer/Draft PR 守卫/幂等审计）逐条映射真实文件 + 未覆盖项。
+- `docs/UPSTREAM_CONTRIBUTIONS.md` — 复用/扩展/修改清单（**0 个 `src/openharness` 源文件被修改**，仅 pyproject + README）+ 可回馈上游候选。
+- `docs/DEMO.md` — 3 分钟演示脚本（离线命令 + 在线可选 + 录屏提示）。
+- `docs/INTERVIEW.md` — 20 个面试问题（架构/状态机幂等/评测回流/安全/工程边界，各附答题方向）。
+- `evals/reports/2026-08-05-default-plan_gates.md` — 真实评测报告存档（CLI `--output` UTF-8）。
+- `.github/workflows/ci.yml` — 替换为 ForgeFlow CI（ruff + mypy + `pytest tests/forgeflow`，Python 3.11/3.12，清空 `ANTHROPIC_*`）。
+- eval CLI 增加 `--output`（写 UTF-8 报告文件）。
+
+**实际验证（2026-08-05）**：
+- `pytest tests/forgeflow -q` → **168 passed, 1 skipped**；`ruff`/`mypy` → clean / Success（54 文件）
+- 评测 CLI `--output evals/reports/...` 生成真实报告（UTF-8，中文正常）
+
+**验收对应**：空环境可部署（README 快速开始 + compose）；端到端演示（`DEMO.md` 脚本）；评测可复现（CLI + 存档）；简历指标有脚本支撑（`python -m forgeflow.evaluation.runner`）；清晰区分上游/个人贡献（`UPSTREAM_CONTRIBUTIONS.md` + README 表格）。暂缓：复盘（`RETROSPECTIVE.md`）与简历（`RESUME.md`）——待 Agent 驱动在线评测产出真实数字后补齐。
 
 ## 上游同步
 
