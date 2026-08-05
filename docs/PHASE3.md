@@ -16,7 +16,7 @@
 - **B3 多仓库**：✅ PolicyProvider 多策略 + executor `policy_resolver` + factory `FORGEFLOW_REPOSITORIES`。
 - **B4 认证**：✅ `ApiKeyAuthenticator`（Bearer / X-API-Key），认证主体填 requested_by、列表按属主过滤；未配 auth 时开放（兼容既有测试）。
 - **B5 command_results 落 trace**：✅ 模型 executor 填 command_results → `/timeline` 有 command_finished。
-- **遗留**：A3 跨模型（保留）；A2 运行需 attrs 仓库 fixture；B1 真实远端提交需在隔离测试仓库验证。
+- **遗留**：A3 跨模型（按用户要求保留不做）；真实远端交付已在隔离测试仓库实测通过（`forgeflow-delivery-test`），如需对更多真实仓库交付需配置 `FORGEFLOW_REPOSITORY_REMOTES`。
 
 ## Phase 3 收尾清单（2026-08-05，新增 4 项，仍属 Phase 3）—— ✅ 全部完成
 

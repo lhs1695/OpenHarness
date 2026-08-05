@@ -4,7 +4,7 @@
 
 ## 1. 一句话状态
 
-**M0–M10 全部完成，Agent 驱动在线评测上线，Phase 2 计划项全部落地；Phase 3 主流程 + 审计修复 + 收尾 4 项全部完成（唯一保留 A3 跨模型）：A1 真实轨迹回流（400 样本，检索 75%→100%）、A2 真实数据集（21 个真实 issue，已可运行）、A4 中文/语义检索、B1 真实 PR（含分支发布交付闭环）、B2 预算、B3 多仓库、B4 认证、B5 command_results 落 trace、SEVERE 守卫/审批持久化/风险真实化/两阶段审批/统一 trace、final_risk_score 重算、简易管理 UI（分支 `feat/phase3`）。**
+**M0–M10 全部完成，Agent 驱动在线评测上线，Phase 2 计划项全部落地；Phase 3 主流程 + 审计修复 + 收尾 4 项全部完成（唯一保留 A3 跨模型）：A1 真实轨迹回流（400 样本，检索 75%→100%）、A2 真实数据集（21 个真实 issue，离线基线 21/21）、A4 中文/语义检索、B1 真实 PR（**分支发布 + 真实远端 Draft PR 已实测**）、B2 预算、B3 多仓库、B4 认证、B5 command_results 落 trace、SEVERE 守卫/审批持久化/风险真实化/两阶段审批/统一 trace、final_risk_score 重算 + 启发式、简易管理 UI（分支 `feat/phase3`）。**
 
 ## 2. 里程碑
 
@@ -51,7 +51,7 @@ M0 审计 → M1 适配层 → M2 控制平面 → M3 隔离执行 → M4 质量
 | CI 在线评测 job | ✅ 已实现（`workflow_dispatch` 手动触发，无 secret 自动跳过）；可选加 `schedule` 定时跑 |
 | 上游同步（P2-1） | ⏸ upstream 0 新提交，按规则仅在必要时做 |
 | 质量基线维护（P2-3） | 持续：改动后 `pytest tests/forgeflow` + `ruff` + `mypy` |
-| Phase 3 剩余 | ⏸ 主流程完成（A1/A2/A4/B1/B2/B3/B4/B5）；**A3 跨模型保留不做**；A2 运行需补 attrs 仓库 fixture |
+| Phase 3 剩余 | ⏸ 主流程 + 审计 + 收尾全部完成；**A3 跨模型保留不做**；真实远端交付需对目标仓库配 `FORGEFLOW_REPOSITORY_REMOTES` |
 
 ## 9. 文档导航
 
