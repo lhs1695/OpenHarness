@@ -35,3 +35,6 @@ react_tui_smoke.txt
 .DS_Store
 Thumbs.db
 uv.lock
+
+# Claude Desktop worktrees
+.claude/worktrees/
