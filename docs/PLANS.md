@@ -15,7 +15,7 @@
 | M5 审批/Reviewer/交付 | ✅ 实现完成（待独立审查） | `milestone/m5-approval` | `domain/approval.py`、`quality/reviewer.py`、`orchestration/delivery.py` |
 | M6 服务化与持久化 | ✅ 实现完成（待独立审查） | `milestone/m6-service` | `api/`、`application/`、`infrastructure/`、compose |
 | M7 全链路 Trace | ✅ 实现完成（待独立审查） | `milestone/m7-trace` | `trace/*` |
-| M8 评测平台 | 待开始 | `milestone/m8-eval` | `evaluation/*`、`evals/` |
+| M8 评测平台 | ✅ 实现完成（待独立审查） | `milestone/m8-eval` | `evaluation/*` + `evals/` 数据集 + fixture |
 | M9 数据回流与经验闭环 | 待开始 | `milestone/m9-feedback` | `evaluation/datasets.py` |
 | M10 包装与维护 | 待开始 | `milestone/m10-packaging` | README、CI、40+ 测试 |
 
@@ -156,10 +156,23 @@ pyrightconfig.json                                       # extraPaths=src（编�
 
 **验收对应**：一个任务可导出完整 JSONL（`export_trace_jsonl` + live API `/trace` 测试）；父子/并行 span 可还原（collector 测试断言工具 span 父=轮次 span、并行工具共享父 span）；敏感数据脱敏（`redaction` + collector 输出断言）；时间线可查（`timeline` + live API `/timeline` 测试）；Trace 含结构化事件（不依赖聊天文本）。
 
-## M8 — 评测平台
+## M8 — 评测平台（实现完成，待独立审查）
 
-- `evaluation/*` + `evals/`（20–30 固定任务）。初始策略：原始基线 / 计划+门禁 / 计划+门禁+Reviewer。
-- 验收：同数据集可重复运行；实验配置版本化；报告含失败案例（不只平均分）。
+**交付**：
+- `evaluation/datasets.py` — `EvalCase`/`Dataset`（版本化）+ 种子数据集：`billing-smoke`（6 个 bugfix 案例，测试失败基线）+ `cart-smoke`（2 个 verify 案例，测试通过）+ `default`（合并）。
+- `evaluation/metrics.py` — 确定性指标：完成率/测试通过率/禁止路径/Token/成本/耗时/工具失败数。
+- `evaluation/experiment.py` — `ExperimentConfig`（策略 + dataset_id + **版本化**）+ `ExperimentResult`（per-strategy 指标 + 失败案例）。
+- `evaluation/strategies.py` — `EvalStrategy` 协议 + `PipelineStrategy`（**确定性本地策略**：隔离 worktree + 必需命令 + 质量门禁，无需模型）；`default_strategies` 提供 raw / plan_gates / plan_gates_reviewer。
+- `evaluation/runner.py` + `__main__.py` — `EvalRunner` 跑策略矩阵；**CLI** `python -m forgeflow.evaluation.runner`（spec §12.4 复现路径）。
+- `evaluation/fixtures.py` — 将纯文件 fixture 物化为临时 git 仓库；新增 `cart-service` 干净 fixture。
+
+**实际验证（2026-08-05）**：
+- `pytest tests/forgeflow -q` → **152 passed, 1 skipped**（M8 新增 13：datasets/metrics/runner/策略集成）
+- CLI 实测：`python -m forgeflow.evaluation.runner --dataset default --strategies plan_gates` → 报告完成率 25%（2/8：cart 通过、billing 因 bug 测试失败），含 6 个失败案例
+- `ruff check src/forgeflow tests/forgeflow` → clean
+- `MYPYPATH=src mypy src/forgeflow --explicit-package-bases --python-version 3.11` → Success（51 文件）
+
+**验收对应**：同数据集可重复运行（runner 重复运行指标一致 + 策略重复一致）；实验配置版本化（`ExperimentConfig.config_version` + `dataset_version`）；报告含失败案例（`render_report` 逐条列出失败案例，不只平均分）；不夸大数字（指标全由真实 EvalResult 计算）。
 
 ## M9 — 数据回流与经验闭环
 
