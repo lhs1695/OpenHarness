@@ -16,7 +16,7 @@
 | M6 服务化与持久化 | ✅ 实现完成（待独立审查） | `milestone/m6-service` | `api/`、`application/`、`infrastructure/`、compose |
 | M7 全链路 Trace | ✅ 实现完成（待独立审查） | `milestone/m7-trace` | `trace/*` |
 | M8 评测平台 | ✅ 实现完成（待独立审查） | `milestone/m8-eval` | `evaluation/*` + `evals/` 数据集 + fixture |
-| M9 数据回流与经验闭环 | 待开始 | `milestone/m9-feedback` | `evaluation/datasets.py` |
+| M9 数据回流与经验闭环 | ✅ 实现完成（待独立审查） | `milestone/m9-feedback` | `evaluation/{feedback,registry,retrieval}.py` |
 | M10 包装与维护 | 待开始 | `milestone/m10-packaging` | README、CI、40+ 测试 |
 
 ## M1 — 最小适配层与垂直链路（实现完成，待独立审查）
@@ -174,10 +174,22 @@ pyrightconfig.json                                       # extraPaths=src（编�
 
 **验收对应**：同数据集可重复运行（runner 重复运行指标一致 + 策略重复一致）；实验配置版本化（`ExperimentConfig.config_version` + `dataset_version`）；报告含失败案例（`render_report` 逐条列出失败案例，不只平均分）；不夸大数字（指标全由真实 EvalResult 计算）。
 
-## M9 — 数据回流与经验闭环
+## M9 — 数据回流与经验闭环（实现完成，待独立审查）
 
-- `evaluation/datasets.py`、`docs/EVALUATION.md`。Trace → 脱敏 → 清洗 → 切分 → 成功/失败分类 → 样本。
-- 验收：真实样本可查看、可溯源到任务与版本；可做"历史经验检索前后"对比实验；不夸大已做模型后训练。
+**交付**：
+- `evaluation/feedback.py` — `TraceSampleBuilder`：Trace → 脱敏 → **切分**（每模型轮次一段，其余独立）→ **成功/失败分类** → 偏好对（失败样本与同源成功样本配对）→ `ExperienceSample`（含 provenance: dataset_version/case_id/repository）。
+- `evaluation/registry.py` — `FeedbackRegistry`（**版本化**注册/查询/latest）。
+- `evaluation/retrieval.py` — `retrieve_experience`（关键词重叠评分）+ `build_retrieval_context`（把成功样本渲染为策略上下文）+ `retrieval_comparison`（检索摘要，供 before/after 对比）。
+- `docs/EVALUATION.md` — 评测与数据回流文档（失败分类、管道、对比方法、复现路径）。
+- **可读性改进**（M8 报告）：`EvalResult.failure_class` = pass/baseline/policy/error；报告显示"基线失败（测试未通过，未施加修复）"与策略失败计数。
+
+**实际验证（2026-08-05）**：
+- `pytest tests/forgeflow -q` → **168 passed, 1 skipped**（M9 新增 16）
+- `ruff check src/forgeflow tests/forgeflow` → clean
+- `MYPYPATH=src mypy src/forgeflow --explicit-package-bases --python-version 3.11` → Success（54 文件）
+- CLI 报告现显示：`plan_gates | 25% | 2/8 | 基线6 | 策略0 | ...`，billing 案例标为"基线失败"
+
+**验收对应**：真实样本可查看（`TraceSampleBuilder` 输出含脱敏内容 + provenance）；样本可溯源到任务与版本（task_id/run_id/provenance）；可做"历史经验检索前后"对比（`retrieval_comparison` + `build_retrieval_context`，Agent 驱动策略上线后执行）；不夸大已做模型后训练（文档明确"仅用于后续评测与检索"）。
 
 ## M10 — 包装与维护
 
