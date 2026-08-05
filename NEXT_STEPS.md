@@ -104,7 +104,7 @@ python -m forgeflow.evaluation.runner --dataset default --strategies plan_gates 
 ### 4.4 Docker Compose 验证 —— ✅ 已完成（2026-08-05）
 - `docker compose up -d` 起 postgres(healthy)/redis/api/worker，`GET localhost:8000/api/v1/tasks` 200，任务全生命周期 COMPLETED；api 镜像 **597MB**。
 - 修复：Dockerfile 加清华 pip 镜像（`ARG PIP_INDEX_URL`）+ `COPY frontend` + **装 git**（worktree 后端必需）；compose 改 alpine 镜像（1ms.run 源拉取超时）、可写挂载 `.docker/repos/billing-service`（git 化 fixture，`.gitignore` 排除）。
-- 遗留：服务策略无 required_commands → 服务路径未真跑仓库测试（可加 `FORGEFLOW_REQUIRED_COMMANDS` 注入）。
+- 遗留已闭合：服务策略加 `FORGEFLOW_REQUIRED_COMMANDS` 注入（factory.py），Dockerfile 装 pytest，compose 设 `python -m pytest -q`；容器内 billing 任务 FAILED 验证通过。
 
 ### 4.5 上游同步（只在里程碑间隙做）
 - `git fetch upstream` → 独立 `sync/upstream-<sha>` 分支 → 先跑上游测试再跑 ForgeFlow 回归 → 更新 `docs/UPSTREAM_MAP.md`。

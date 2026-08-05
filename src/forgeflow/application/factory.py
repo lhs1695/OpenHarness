@@ -32,7 +32,12 @@ def create_service_from_env() -> TaskService:
     event_bus = EventBus()
     approvals = ApprovalManager()
 
-    policy = RepositoryPolicy(repository=repository)
+    required_commands = [
+        command.strip()
+        for command in os.environ.get("FORGEFLOW_REQUIRED_COMMANDS", "").split(",")
+        if command.strip()
+    ]
+    policy = RepositoryPolicy(repository=repository, required_commands=required_commands)
     executor: TaskExecutor
     executor_mode = os.environ.get("FORGEFLOW_EXECUTOR", "local")
     if executor_mode == "model":

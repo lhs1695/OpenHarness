@@ -30,6 +30,7 @@ services:
       FORGEFLOW_CELERY_BROKER: redis://redis:6379/0
       FORGEFLOW_REPO_PATH: /repos/billing-service
       FORGEFLOW_REPOSITORY: billing-service
+      FORGEFLOW_REQUIRED_COMMANDS: python -m pytest -q
     volumes:
       # git-initialized copy of the fixture (see .docker/repos/ — the worktree
       # backend requires a real git repository and needs to write worktree refs)
@@ -50,6 +51,7 @@ services:
       FORGEFLOW_CELERY_BROKER: redis://redis:6379/0
       FORGEFLOW_REPO_PATH: /repos/billing-service
       FORGEFLOW_REPOSITORY: billing-service
+      FORGEFLOW_REQUIRED_COMMANDS: python -m pytest -q
     volumes:
       - ./.docker/repos/billing-service:/repos/billing-service
     depends_on:

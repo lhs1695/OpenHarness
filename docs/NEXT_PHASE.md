@@ -23,7 +23,7 @@
 - **修的问题（compose）**：
   1. `postgres:16`/`redis:7` 从 1ms.run 镜像源拉取 TLS 超时 → 改用本机已有的 alpine 变体。
   2. fixture 目录不是 git 仓库、且 `:ro` 只读挂载挡了 `git worktree add`（要写源 `.git` refs）→ 建 `.docker/repos/billing-service`（git 化副本，`.gitignore` 排除）并**可写**挂载。
-- **遗留缺口（如实记录）**：服务策略（`factory.py` 的 `RepositoryPolicy`）**无 required_commands**——服务路径的 `LocalTaskExecutor` 实际不跑仓库测试（只有评测路径经 `_policy_for_case` 注入测试命令）；本次任务 COMPLETED 但未真正跑 pytest。这是服务路径质量门禁的配置缺口，后续可加 `FORGEFLOW_REQUIRED_COMMANDS` 之类注入。
+- **遗留缺口 → 已闭合（2026-08-05）**：服务策略原无 required_commands（服务路径不跑仓库测试）。已加 `FORGEFLOW_REQUIRED_COMMANDS` env 注入 `factory.py` 的 policy，Dockerfile 装 pytest，compose 设 `python -m pytest -q`；容器内验证 billing 任务 → **FAILED**（pytest 因幂等 bug 失败，门禁生效）。新增 `test_factory.py` 行为测试。
 
 ### P0-2 经验检索 before/after 对比实验（M9 未接线的对比）—— ✅ 已完成（2026-08-05）
 - **结果**：plan_gates 带检索 **87.5%（7/8）** vs 不带检索 **75%（6/8）**（`evals/reports/2026-08-05-online-default-retrieval.md` vs `...online-default.md`）。注入种子经验后 billing-003 被修复；billing-005 仍未修复。单次运行含模型随机性，如实记录。
@@ -55,7 +55,8 @@
 ## 3. 依赖与排序建议
 
 - ✅ 已完成：P0-2（检索对比）、P1-1（服务层模型驱动 executor）、P0-1（Docker Compose 端到端验证）、P1-2（推标签）、P2-2（CI 扩展）。
-- 剩余/持续：P2-1（上游同步，当前 upstream 无新提交，按规则仅在必要时做）、P2-3（质量基线，持续维护）、P0-1 遗留（服务路径 required_commands 注入）。
+- ✅ 已闭合遗留：服务路径 required_commands 注入（`FORGEFLOW_REQUIRED_COMMANDS`）。
+- 剩余/持续：P2-1（上游同步，当前 upstream 无新提交，按规则仅在必要时做）、P2-3（质量基线，持续维护）、CI 在线评测 job（需 DeepSeek secret）。
 - 建议顺序：**P2-3（持续）→ 按需处理遗留项**。
 
 ## 4. 完成定义

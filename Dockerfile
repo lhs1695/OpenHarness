@@ -17,7 +17,8 @@ COPY src ./src
 # pyproject.toml force-includes frontend/terminal assets into the wheel.
 COPY frontend ./frontend
 
-RUN pip install --no-cache-dir -e ".[service]"
+# pytest is needed to run the repo's test command as a quality gate.
+RUN pip install --no-cache-dir -e ".[service]" pytest
 
 EXPOSE 8000
 
