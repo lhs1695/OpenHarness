@@ -9,7 +9,7 @@
 
 - **里程碑**：M0–M10 全部完成并 merge 回 `develop`（已推送 origin）。
 - **在线评测**（DeepSeek 真实调用，`evals/reports/2026-08-05-online-default.md`）：raw **100%（8/8）**、plan_gates **75%（6/8）**、plan_gates_reviewer **75%（6/8）**；基线 25% → 在线 75–100%。
-- **质量**：ForgeFlow **181 passed / 1 skipped / 5 deselected（online）**；ruff / mypy clean（55 文件）；`src/openharness/` **0 源文件被修改**。
+- **质量**：ForgeFlow **190 passed / 1 skipped / 6 deselected（online）**；ruff / mypy clean（55 文件）；`src/openharness/` **0 源文件被修改**。
 - **CI**（`.github/workflows/ci.yml`）：单 job，Python 3.11/3.12，清 `ANTHROPIC_*`，跑 ruff / mypy / `pytest tests/forgeflow`；`addopts -m "not online"` 默认跳过在线；**不含上游 `tests/`**。
 
 ## 2. 工作项（按优先级）
@@ -28,12 +28,10 @@
 - **落地**：`EvalStrategy.run` 协议加可选 `context`；在线策略把 `build_retrieval_context` 拼进 `build_fix_prompt`；runner `--feedback-dataset <json>` 注入；`feedback.py` 加 `dataset_to_json`/`dataset_from_json`；种子集 `evals/data/seed-experience.json`。
 - **遗留**：检索按拉丁词重叠打分，中文描述靠 case tags 命中；无真实 trace 历史（在线评测未回流样本到反馈管道）——让检索消费真实历史是后续工作。
 
-### P1-1 服务层接真实 Agent executor
-- **目标**：任务服务路径从确定性 `LocalTaskExecutor` 升级为模型驱动 executor。
-- **做法**：实现 `ModelDrivenTaskExecutor` 满足 `TaskExecutor` protocol（`application/executors.py:30-31`），复用 `strategies_online.py` 的 runtime/agent 逻辑；在 `application/factory.py:36` 替换注入即可（`task_orchestrator.py:96` 只调 `_executor.execute`，`task_service.py` 不经 executor）。
-- **验收**：服务端到端 建任务→start→模型驱动执行→状态/Trace 落库；质量门禁/审批仍生效。
-- **涉及**：`application/executors.py`、`application/factory.py`；复用 `evaluation/strategies_online.py`。
-- **风险**：在线执行时长/成本不可控 → 需预算与超时（复用 `orchestration/budgets.py` 与在线策略墙钟超时）；生产凭据管理。
+### P1-1 服务层接真实 Agent executor —— ✅ 已完成（2026-08-05）
+- **落地**：`ModelDrivenTaskExecutor`（`application/executors.py`）满足 `TaskExecutor` protocol，复用在线 `PlanGatesStrategy`，`StoredTask → EvalCase → ExecutionOutcome` 适配；`factory.py` 加 `FORGEFLOW_EXECUTOR=model` 开关（默认 local）。
+- **验证**：离线单元+服务级测试（orchestrator→executor→COMPLETED 落库）6 passed；在线冒烟 `test_model_executor_online` 通过（76s，真实模型）。
+- **遗留**：在线执行时长/成本受策略墙钟超时约束，未接 `budgets.py` 预算；Trace 只记录状态事件、不记录命令输出（EvalResult 不带 command_results）；生产凭据管理靠 `~/.openharness`。
 
 ### P1-2 推送 `upstream-base-0.1.9` 标签到 origin
 - **验收**：`git push origin upstream-base-0.1.9` 后可 `git show-ref` 核验。
@@ -54,9 +52,9 @@
 
 ## 3. 依赖与排序建议
 
-- P0-2（检索对比）无需 Docker，可立即开始；P0-1 依赖本机 Docker Desktop 可用。
-- P1-1 依赖在线策略运行时（P0-2 会复用它，建议在其后）。
-- 建议顺序：**P0-2 → P0-1 → P1-1 → P1-2 → P2-1/P2-2/P2-3 穿插**。
+- ✅ 已完成：P0-2（检索对比）、P1-1（服务层模型驱动 executor）。
+- 进行中：P0-1 依赖本机 Docker Desktop 可用。
+- 剩余顺序建议：**P0-1（Docker）→ P1-2（推标签）→ P2-1/P2-2/P2-3 穿插**。
 
 ## 4. 完成定义
 
