@@ -12,7 +12,7 @@
 | M2 状态机/风险/预算 | ✅ 实现完成（待独立审查） | `milestone/m2-control-plane` | `domain/{policy,risk}`、`orchestration/{state_machine,budgets}`、`errors.py` |
 | M3 Local Worktree 隔离执行 | ✅ 实现完成（待独立审查） | `milestone/m3-isolation` | `execution/{base,worktree}.py` |
 | M4 代码修改与质量门禁 | ✅ 实现完成（待独立审查） | `milestone/m4-quality` | `quality/{gates,reports}.py` |
-| M5 审批/Reviewer/交付 | 待开始 | `milestone/m5-approval` | `domain/approval.py`、`quality/reviewer.py` |
+| M5 审批/Reviewer/交付 | ✅ 实现完成（待独立审查） | `milestone/m5-approval` | `domain/approval.py`、`quality/reviewer.py`、`orchestration/delivery.py` |
 | M6 服务化与持久化 | 待开始 | `milestone/m6-service` | `api/`、`infrastructure/`、compose |
 | M7 全链路 Trace | 待开始 | `milestone/m7-trace` | `trace/*` |
 | M8 评测平台 | 待开始 | `milestone/m8-eval` | `evaluation/*`、`evals/` |
@@ -105,10 +105,21 @@ pyrightconfig.json                                       # extraPaths=src（编�
 
 **验收对应**：支持实际可用的必需命令（`required_commands_gate` + runner 用 `shlex.split` 结构化执行）；失败结构化保存（`GateResult.details` + `QualityReport.summarize`）；禁止路径与 Diff 大小门禁生效（硬/软）；禁止"改测试掩盖 Bug"（`test_masking_gate`）；7 个固定任务可复现（`test_quality_gates.py`）。
 
-## M5 — 审批/Reviewer/交付
+## M5 — 审批/Reviewer/交付（实现完成，待独立审查）
 
-- `domain/approval.py`、`quality/reviewer.py`（Reviewer = 只读 AgentDefinition + 限制工具）。
-- 验收：Reviewer 默认只读；未批准高险不继续；审批接口幂等；Draft PR 仅测试仓库；审批进审计 Trace。
+**交付**：
+- `domain/approval.py` — `ApprovalManager`（幂等 resolve：重复/冲突再解决返回首次结果、不重复审计）、`approval_requirements(risk_level)`（LOW=无 / MEDIUM=FINAL / HIGH=PLAN+FINAL）、`assert_approvals_complete`（**未批准高险任务不能继续**）、审计日志（requested/approved/rejected，含操作者/时间/理由）。
+- `quality/reviewer.py` — 只读 Reviewer：`read_only_tool_registry`（白名单 read_file/glob/grep/lsp 等，**无 bash/write/edit**）、`build_review_engine`（只读工具 + PLAN 权限）、`build_review_prompt`（强制 READ-ONLY）、`parse_review`（P0–P3 findings + verdict + summary）、`Reviewer`（注入引擎）。
+- `quality/gates.py` + `reviewer_gate`（**硬**：Reviewer 判定 P0/P1 → 阻止交付）。
+- `orchestration/delivery.py` — `make_patch`、`DeliveryService.create_draft_pr`（**Draft PR 只允许测试仓库**，非测试仓库抛 `DraftPrGuardError`；真实 GitHub 提交留 M6）。
+
+**实际验证（2026-08-05）**：
+- `pytest tests/forgeflow -q` → **106 passed, 1 skipped**（M5 新增 25）
+- 在线只读 Review：`pytest -m online .../test_reviewer_online.py` → **1 passed**（19.8s，真实模型产出 ReviewReport）
+- `ruff check src/forgeflow tests/forgeflow` → clean
+- `MYPYPATH=src mypy src/forgeflow --explicit-package-bases --python-version 3.11` → Success（22 文件）
+
+**验收对应**：Reviewer 默认只读（只读工具白名单 + 在线验证）；未批准高险不继续（`assert_approvals_complete` 抛 `ApprovalRequiredError`）；审批接口幂等（重复/冲突 resolve 幂等）；Draft PR 仅测试仓库（`DraftPrGuardError`）；审批进审计 Trace（audit_log 记录操作者/时间/理由）。
 
 ## M6 — 服务化与持久化
 

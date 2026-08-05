@@ -14,6 +14,7 @@ from enum import Enum
 
 from forgeflow.domain.policy import RepositoryPolicy
 from forgeflow.execution.base import ExecutionResult
+from forgeflow.quality.reviewer import ReviewReport
 
 
 class GateType(str, Enum):
@@ -136,3 +137,16 @@ def required_commands_gate(command_results: dict[str, ExecutionResult]) -> GateR
             details={"failed": failed},
         )
     return GateResult("required_commands", GateType.HARD, GateStatus.PASSED)
+
+
+def reviewer_gate(report: ReviewReport) -> GateResult:
+    """Hard: a reviewer finding at P0/P1 blocks delivery (spec §7.4)."""
+    blockers = report.blockers
+    if blockers:
+        return GateResult(
+            "reviewer",
+            GateType.HARD,
+            GateStatus.FAILED,
+            details={"blockers": [finding.message for finding in blockers]},
+        )
+    return GateResult("reviewer", GateType.HARD, GateStatus.PASSED)
