@@ -2,7 +2,39 @@
 
 > 定位：与 `docs/NEXT_PHASE.md`（Phase 2 加固，已全部完成）区分——本阶段从
 > **业务能力**与**数据**两个支柱推进，把"验证过的平台"推向"贴近生产、越用越好"。
-> 每项含 现状 / 做法 / 验收 / 涉及文件。
+> 每项含 现状 / 做法（详细） / 测试 / 验收。
+
+## 给下一轮对话的提示词（复制本块给 Claude Code）
+
+```text
+你是 ForgeFlow 项目的下一位开发会话。上一位会话把 Phase 3 计划交接给你，请按下列顺序执行。
+
+## 开始前必读
+- docs/PHASE3.md（本阶段计划，含每项详细改动说明）
+- docs/STATUS.md（当前状态快照）
+- docs/NEXT_STEPS.md（交接提示词 + 维护清单 + 环境坑）
+- PROJECT_SPEC.md（规格与 §16 规则：禁止编造数字）
+
+## 环境
+- 从 develop 派生新 worktree：git worktree add -b feat/phase3 .claude/worktrees/phase3 develop
+- 装依赖：python -m pip install -e ".[dev,service]" --no-build-isolation
+- 若 import 失败（editable 指向已删 worktree）：见 NEXT_STEPS §3.1 重装。
+- 跑测试前清全部 ANTHROPIC_*（含 ANTHROPIC_BASE_URL）；在线评测需 DeepSeek 凭据（~/.openharness/settings.json）。
+
+## 本轮任务（按优先级，一项完成再下一项）
+1. [最高优先] A1 真实评测轨迹回流（见 PHASE3 §2 A1 详细做法）
+   - 让在线策略把 StreamEvent 转发给 TraceCollector → TraceSampleBuilder → FeedbackRegistry。
+   - 验收：一次在线评测后 FeedbackRegistry 有真实 success/failure 样本；用真实历史样本重跑
+     检索 before/after，报告入 evals/reports/。数字必须真实（§16）。
+2. B2 预算与成本治理：BudgetTracker 接入 ModelDrivenTaskExecutor，超限返回 budget_exceeded。
+3. B1 真实 GitHub PR 提交：复用 openharness/autopilot 的 gh CLI 封装，配 GITHUB_TOKEN。
+4. A2/A3/A4 与 B3/B4/B5 按 PHASE3 §2/§3 推进。
+
+## 规则
+- 不改 src/openharness/ 任何源文件；新能力放 src/forgeflow/。
+- 新行为必须有测试；只对改动文件跑 ruff/mypy（命令见 NEXT_STEPS §3）。
+- 每完成一项更新 docs/HANDOFF.md 与本文件；结束前汇报：改了什么、真实数字、遗留风险。
+```
 
 ## 1. 现状基线（2026-08-05，可核验）
 
@@ -14,60 +46,152 @@
 ## 2. 支柱 A：数据闭环（让平台"越用越好"）
 
 ### A1 真实评测轨迹回流（最高优先）
-- **现状**：`evaluation/strategies_online.py` 的 `_collect_stream`（:308-319）只消费 StreamEvent 计数，不记录 SpanEvent；`feedback.py` 的 `TraceSampleBuilder.build`（:155）消费 SpanEvent。
-- **做法**：在 `_collect_stream` 循环内把每个 StreamEvent 转发给 `TraceCollector.on_stream_event`（`trace/collector.py:41`），收集一次在线评测的 SpanEvent → `TraceSampleBuilder.build` → 注册进 `FeedbackRegistry`；检索改用真实历史样本重跑 before/after。
-- **验收**：一次在线评测后 `FeedbackRegistry` 有真实 success/failure 样本；`evals/reports/` 出现"真实数据 before/after"报告。
-- **涉及**：`evaluation/strategies_online.py`、`evaluation/feedback.py`（复用）、`trace/collector.py`（复用）、`evaluation/registry.py`（复用）、runner 增加"是否回流"开关。
+
+**现状**：`evaluation/strategies_online.py` 的 `_collect_stream`（:308-319）只消费 StreamEvent 计数，
+不记录 SpanEvent；`feedback.py` 的 `TraceSampleBuilder.build`（:155）消费 SpanEvent。
+
+**做法（详细）**：
+1. 在 `strategies_online.py` 增加可选的 `trace_collector` 参数（每策略 `run()` 透传）：策略为每个
+   案例建 `TraceCollector(task_id=case.case_id, run_id=f"run_{case.case_id}")`（复用 `trace/collector.py`）。
+2. 在 `_collect_stream` 的 `async for event in engine.submit_message(prompt)` 循环内，
+   把每个 StreamEvent 转发给 `collector.on_stream_event(event)`（`trace/collector.py:41`）。
+3. 策略结束（plan / impl / review 各阶段）后，用 `collector.events()` 拿到 SpanEvent 列表；
+   经 `TraceSampleBuilder().build(task_id, run_id, events, provenance={dataset_version, case_id, repository})`
+   （`feedback.py:155`）产出 `FeedbackDataset`。
+4. 注册进 `FeedbackRegistry`（`evaluation/registry.py`，`register(dataset)`）。
+5. runner 增加 `--feedback-output <json>`：评测结束后把所有 `FeedbackDataset` 用
+   `dataset_to_json`（`feedback.py` 已有）写盘；后续运行 `--feedback-dataset <json>`（runner 已支持）
+   即用真实历史重跑检索 before/after。
+
+**测试**：离线单测——fake engine 产 StreamEvent，断言 collector 收到事件、`TraceSampleBuilder` 产出
+样本、`FeedbackRegistry` 可查；在线冒烟标记 `online`（复用现有 online 测试模式）。
+
+**验收命令**：
+```bash
+python -m forgeflow.evaluation.runner --dataset default --strategies plan_gates --online \
+  --feedback-output evals/data/real-feedback.json
+python -m forgeflow.evaluation.runner --dataset default --strategies plan_gates --online \
+  --feedback-dataset evals/data/real-feedback.json --output evals/reports/real-before-after.md
+```
 
 ### A2 真实数据集（来自真实 GitHub issue）
-- **现状**：`EvalCase`（`evaluation/datasets.py:12-20`）有 case_id/repository/title/description/task_type/priority/acceptance_rules/tags/test_command，够用但无来源 provenance。
-- **做法**：给 `EvalCase` 加 `metadata`（issue_url/id/labels/author）；从真实开源仓库 issue 构造 20+ 个 bugfix 案例；跑通 CLI。
-- **验收**：数据集每案例可溯源到真实 issue；完成率数字可对到 issue。
-- **涉及**：`evaluation/datasets.py`、`evals/data/` 新数据集 JSON、runner 加载。
+
+**现状**：`EvalCase`（`evaluation/datasets.py:12-20`）有 case_id/repository/title/description/task_type/
+priority/acceptance_rules/tags/test_command，够用但无来源 provenance。
+
+**做法（详细）**：
+1. `EvalCase` 加 `metadata: dict[str, str] = field(default_factory=dict)`（dataclass 字段，默认空），
+   用于存 `issue_url` / `issue_id` / `labels` / `author`。
+2. 新增 `evals/data/issues-*.json`：从真实开源仓库（如 billing 类 / 工具类 Python 库）的 bugfix issue
+   提取 title/description/acceptance_rules/tags，构造 20+ 个 EvalCase。
+3. `evaluation/datasets.py` 注册新数据集（仿 `get_dataset`）；runner `--dataset <id>` 直接可用。
+
+**测试**：单测断言 metadata 写入与回读；数据集加载可复现。
+
+**验收**：每个 case 的 `metadata.issue_url` 可溯源到真实 issue；完成率数字可对到 issue。
 
 ### A3 跨模型评测矩阵
-- **现状**：只在 DeepSeek 跑。
-- **做法**：CLI 加 `--model`（或经 settings profile），同一数据集跑 DeepSeek/Claude/GPT，产出"模型 × 策略"完成率/成本矩阵。
-- **验收**：`evals/reports/` 有跨模型矩阵报告（数字真实，禁止编造）。
-- **涉及**：`evaluation/runner.py`、`evaluation/strategies_online.py`（模型可注入，已支持）。
+
+**现状**：只在 DeepSeek 跑（`strategies_online.py` 的 runtime 经 `OPENHARNESS_MODEL`/settings 定模型）。
+
+**做法（详细）**：
+1. runner 加 `--model <name>`：透传给 `strategies_online.default_runtime_factory` 的 `build_runtime(model=...)`
+   （已支持模型注入），或经 settings profile 切换。
+2. 分别配 DeepSeek / Claude / GPT 凭据（settings profile 或 env），同一数据集各跑一遍三策略。
+3. 产出"模型 × 策略"完成率/成本/耗时矩阵，报告入 `evals/reports/`。
+
+**测试**：离线单测 `--model` 透传（fake runtime 记录 model）；矩阵渲染单测。
+
+**验收**：矩阵报告数字真实可复现（禁止编造）；跨模型差异可解释。
 
 ### A4 检索升级（语义 + 中文）
-- **现状**：`evaluation/retrieval.py` 按拉丁词重叠打分（`_term_set` `[a-z0-9_]+`），中文描述靠 tags 命中。
-- **做法**：加语义检索（embedding 相似度，可选依赖 `sentence-transformers` 或 API embedding）与中文分词，替换/增强关键词打分。
-- **验收**：检索命中显著更相关；before/after 对比差异更可信。
-- **涉及**：`evaluation/retrieval.py`、`pyproject.toml`（可选依赖）、检索测试。
+
+**现状**：`evaluation/retrieval.py` 按拉丁词重叠打分（`_term_set` `[a-z0-9_]+`，:11-19），中文描述靠 tags 命中。
+
+**做法（详细）**：
+1. `retrieve_experience` 增加语义打分路径：用 embedding 相似度（可选依赖 `sentence-transformers` 或
+   API embedding），`pyproject.toml` 加 `[retrieval]` extra。
+2. 中文分词：`jieba` 或 n-gram 切分，替代纯拉丁 `_term_set`。
+3. 保留关键词打分作为 fallback（无 embedding 依赖时仍可用）；打分融合或择优。
+
+**测试**：检索单测（中文 query 命中率提升、无依赖 fallback 不炸）。
+
+**验收**：检索命中显著更相关；真实数据 before/after（A1 产出）对比差异更可信。
 
 ## 3. 支柱 B：业务能力（让交付"真实落地"）
 
 ### B1 真实 GitHub PR 提交
-- **现状**：`orchestration/delivery.py:55-66` `create_draft_pr` 只返回本地 `DraftPr`，不调 GitHub；`DraftPrGuardError`（:32）限制测试仓库。
-- **做法**：复用 `openharness/autopilot/service.py:1320/1326/1344` 的 gh CLI 封装（repo view/pr list/pr edit）；配置 `GITHUB_TOKEN`；放开守卫为真实仓库（仍对测试仓库保持 Draft 语义）。
-- **验收**：审批通过后对真实仓库真的创建 Draft PR（隔离环境验证，不污染真实远端）。
-- **涉及**：`orchestration/delivery.py`、`application/factory.py`（token 配置）、`pyproject.toml`。
+
+**现状**：`orchestration/delivery.py:55-66` `create_draft_pr` 只返回本地 `DraftPr`，不调 GitHub；
+`DraftPrGuardError`（:32）限制测试仓库。
+
+**做法（详细）**：
+1. 复用 `openharness/autopilot/service.py:1320/1326/1344` 的 gh CLI 封装（repo view / pr list / pr edit），
+   或直接在 `delivery.py` 用 subprocess 调 `gh pr create --draft --base ... --head ...`。
+2. `application/factory.py` 读 `GITHUB_TOKEN` env，配置 gh 认证（`GH_TOKEN`）。
+3. 放开守卫：真实仓库允许创建 Draft PR；测试仓库保持 Draft 语义不变。
+4. 真实远端提交只在显式隔离环境（专用测试仓库）验证，不污染真实远端。
+
+**测试**：mock gh CLI（fake subprocess 返回码/输出）离线测 `create_draft_pr`；隔离环境在线冒烟。
+
+**验收**：审批通过后对真实仓库真的创建 Draft PR；守卫与 Draft 语义行为正确。
 
 ### B2 预算与成本治理
-- **现状**：`orchestration/budgets.py` `Budget`（:9-16）/`BudgetTracker`（:55-83）存在，但 `ModelDrivenTaskExecutor` 未用；步数/超时硬编码（`strategies_online.py:77-85`）。
-- **做法**：executor/策略接 `BudgetTracker`，超预算返回 `budget_exceeded`（orchestrator `task_orchestrator.py:106` 已有分支）。
-- **验收**：在线执行受步数/Token/时长预算约束；超限任务状态正确（BUDGET_EXCEEDED）。
-- **涉及**：`application/executors.py`、`evaluation/strategies_online.py`、`orchestration/budgets.py`（复用）。
+
+**现状**：`orchestration/budgets.py` `Budget`（:9-16）/`BudgetTracker`（:55-83）存在，但
+`ModelDrivenTaskExecutor` 未用；步数/超时硬编码（`strategies_online.py:77-85`）。
+
+**做法（详细）**：
+1. `ModelDrivenTaskExecutor` 构造时建 `BudgetTracker(Budget(...))`（预算来自 policy 或 env）。
+2. 每次 `strategy.run` 前/后更新 tracker：步数（`EvalResult.metadata["tool_calls"]`）、
+   token（`EvalResult.token_usage`）、时长（`EvalResult.duration_ms`）。
+3. 超预算 → `ExecutionOutcome(status="budget_exceeded")`（orchestrator `task_orchestrator.py:106`
+   已有 `BUDGET_EXCEEDED` 分支，无需改状态机）。
+4. `strategies_online.py` 的硬编码步数/超时改为从预算派生（或保留上限 + 预算兜底）。
+
+**测试**：fake strategy 返回超预算结果 → executor 产出 `budget_exceeded`；orchestrator 落 `BUDGET_EXCEEDED`。
+
+**验收**：在线执行受步数/Token/时长预算约束；超限任务状态正确。
 
 ### B3 多仓库支持
-- **现状**：`PolicyProvider` 单仓库（`application/factory.py:57`）。
-- **做法**：多仓库策略注册；服务按任务 `repository` 选策略。
-- **验收**：一个服务实例可处理多个仓库、各自门禁策略。
-- **涉及**：`application/task_service.py`、`application/factory.py`、`domain/policy.py`（复用）。
+
+**现状**：`PolicyProvider` 单仓库（`application/factory.py:57`）。
+
+**做法（详细）**：
+1. `PolicyProvider` 支持 `dict[str, RepositoryPolicy]` 注册；`for_repository(name)` 查策略。
+2. `application/factory.py` 从 env（`FORGEFLOW_REPOSITORIES` 逗号分隔）或注册表构建多策略。
+3. 服务按任务 `StoredTask.repository` 选策略（`task_service` / orchestrator 处）。
+
+**测试**：多仓库任务各自门禁策略生效（fake 后端单测）。
+
+**验收**：一个服务实例可处理多个仓库、各自策略。
 
 ### B4 认证与任务属主
-- **现状**：无认证。
-- **做法**：API-key / OAuth（复用 openharness auth 层），任务按用户隔离。
-- **验收**：未认证请求被拒；任务有属主、列表按属主过滤。
-- **涉及**：`api/app.py`、`application/task_service.py`、`infrastructure/models.py`。
+
+**现状**：无认证（`api/app.py` 直接放行）。
+
+**做法（详细）**：
+1. API 加认证依赖（复用 openharness auth 层：API-key / OAuth），`api/app.py` 加 `Depends`。
+2. `CreateTaskInput.requested_by` 从认证主体填充并落库（`infrastructure/models.py` 已有字段）。
+3. 任务列表按属主过滤。
+
+**测试**：未认证请求 401；认证后创建/列表按属主过滤。
+
+**验收**：未认证被拒；任务有属主、列表按属主过滤。
 
 ### B5 服务可观测性补全
-- **现状**：模型 executor 的 `command_results` 不落 trace。
-- **做法**：`ModelDrivenTaskExecutor` 把执行结果输出到 `TraceCollector`（orchestrator `_record_commands` 路径）。
-- **验收**：`/timeline`、`/trace` 完整记录模型执行的命令与结果。
-- **涉及**：`application/executors.py`、`application/task_orchestrator.py`（复用）。
+
+**现状**：模型 executor 的 `command_results` 不落 trace（orchestrator `_record_commands` 只收
+`ExecutionOutcome.command_results`，`ModelDrivenTaskExecutor` 未填）。
+
+**做法（详细）**：
+1. `ModelDrivenTaskExecutor` 把策略执行的关键命令/结果填入 `ExecutionOutcome.command_results`
+   （可先从 `EvalResult` 或策略 metadata 映射）。
+2. 复用 orchestrator `_record_commands`（`task_orchestrator.py:128-137`）落 trace，无需改编排。
+
+**测试**：`/timeline`、`/trace` 断言含模型执行的命令与结果。
+
+**验收**：服务路径的 timeline/trace 完整记录模型执行的命令与结果。
 
 ## 4. 排序与依赖
 
@@ -77,4 +201,6 @@
 
 ## 5. 完成定义
 
-- 每项验收可执行、可复现；评测数字真实不编造（`PROJECT_SPEC` §16）；改动后质量基线（`pytest tests/forgeflow` + ruff + mypy）保持全绿。
+- 每项验收可执行、可复现；评测数字真实不编造（`PROJECT_SPEC` §16）。
+- 改动后质量基线全绿：`pytest tests/forgeflow -q`、`ruff check src/forgeflow tests/forgeflow`、
+  `MYPYPATH=src mypy src/forgeflow --explicit-package-bases --python-version 3.11`。
