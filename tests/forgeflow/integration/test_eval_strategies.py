@@ -34,6 +34,7 @@ async def test_clean_repo_case_passes(git_repos) -> None:
         case, repo_path=git_repos["cart-service"], strategy_name="plan_gates"
     )
     assert result.status == "passed"
+    assert result.failure_class == "pass"
     assert result.tests_passed
     assert result.hard_gates_passed
 
@@ -50,6 +51,7 @@ async def test_buggy_repo_case_fails(git_repos) -> None:
         case, repo_path=git_repos["billing-service"], strategy_name="plan_gates"
     )
     assert result.status == "failed"
+    assert result.failure_class == "baseline"  # repo tests fail; no fix applied yet
     assert not result.tests_passed
     assert result.error is not None
 

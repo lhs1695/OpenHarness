@@ -27,6 +27,15 @@ class EvalStrategy(Protocol):
     async def run(self, case: EvalCase, *, repo_path: Path, strategy_name: str) -> EvalResult: ...
 
 
+def _failure_class(passed: bool, hard_failed: list[str]) -> str:
+    """Classify a result: baseline (repo tests fail, no fix applied) vs policy vs pass."""
+    if passed:
+        return "pass"
+    if "required_commands" in hard_failed:
+        return "baseline"
+    return "policy"
+
+
 def _resolved_test_command(command: str) -> str:
     """Resolve a bare ``pytest`` command to this interpreter's python -m pytest."""
     parts = shlex.split(command)
@@ -73,10 +82,12 @@ class PipelineStrategy:
             )
             duration_ms = int((time.monotonic() - started) * 1000)
             hard_failed = [gate.gate_name for gate in report.hard_failures]
+            failure_class = _failure_class(report.passed, hard_failed)
             return EvalResult(
                 case_id=case.case_id,
                 strategy=strategy_name,
                 status="passed" if report.passed else "failed",
+                failure_class=failure_class,
                 tests_passed="required_commands" not in hard_failed,
                 hard_gates_passed=report.passed,
                 forbidden_paths_touched="forbidden_paths" in hard_failed,
@@ -89,6 +100,7 @@ class PipelineStrategy:
                 case_id=case.case_id,
                 strategy=strategy_name,
                 status="error",
+                failure_class="error",
                 error=str(exc),
                 duration_ms=duration_ms,
             )

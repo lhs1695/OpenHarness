@@ -34,6 +34,7 @@ class EvalResult:
     case_id: str
     strategy: str
     status: str  # passed | failed | error
+    failure_class: str = "pass"  # pass | baseline | policy | error
     tests_passed: bool = False
     hard_gates_passed: bool = False
     forbidden_paths_touched: bool = False
