@@ -10,7 +10,7 @@
 | M0 上游审计与基线 | ✅ 完成（2026-08-05，已审查） | `milestone/m0-audit` | `docs/audit/*`、`docs/UPSTREAM_MAP.md`、`docs/adr/0001` |
 | M1 最小适配层与垂直链路 | ✅ 实现完成（待独立审查） | `milestone/m1-adapter` | `src/forgeflow/integrations/openharness/*` + `domain/task.py` + 测试 |
 | M2 状态机/风险/预算 | ✅ 实现完成（待独立审查） | `milestone/m2-control-plane` | `domain/{policy,risk}`、`orchestration/{state_machine,budgets}`、`errors.py` |
-| M3 Local Worktree 隔离执行 | 待开始 | `milestone/m3-isolation` | `execution/worktree.py` |
+| M3 Local Worktree 隔离执行 | ✅ 实现完成（待独立审查） | `milestone/m3-isolation` | `execution/{base,worktree}.py` |
 | M4 代码修改与质量门禁 | 待开始 | `milestone/m4-quality` | `quality/*` |
 | M5 审批/Reviewer/交付 | 待开始 | `milestone/m5-approval` | `domain/approval.py`、`quality/reviewer.py` |
 | M6 服务化与持久化 | 待开始 | `milestone/m6-service` | `api/`、`infrastructure/`、compose |
@@ -72,10 +72,19 @@ pyrightconfig.json                                       # extraPaths=src（编�
 
 **验收对应**：状态转移测试覆盖正常/审批/取消/暂停恢复/非法/幂等（`test_state_machine.py`）；风险原因可解释（`test_risk.py` 断言 reasons 含"（+20）"）；超预算检测（`test_budgets.py`）；同一命令重复执行不重复改状态（幂等 no-op 测试）。
 
-## M3 — Local Worktree 隔离执行
+## M3 — Local Worktree 隔离执行（实现完成，待独立审查）
 
-- `execution/base.py` + `execution/worktree.py`（适配 `WorktreeManager`，`swarm/worktree.py:135`）。
-- 验收：不修改原工作目录；失败可清理；路径越界拒绝（绝对路径解析 + 越界校验）；超时终止子进程；3 个固定任务完成。
+**交付**：
+- `execution/base.py` — `ExecutionBackend` Protocol（spec §7.3）、`ExecutionResult`（含 `timed_out`）、`Artifact`、纯函数 `resolve_workspace_path`（绝对路径解析 + 越界校验，spec §11.2）。
+- `execution/worktree.py` — `WorktreeExecutionBackend`：**适配**上游 `WorktreeManager`（`swarm/worktree.py:135`）为每个任务创建 git worktree；命令用结构化参数 + `cwd=workspace`；超时/取消用 `taskkill /T /F`（Windows）终止进程树；`collect_artifacts` 产出 changed_file + diff_stat；`cleanup` 移除 worktree。
+- `errors.py` 新增 `PathEscapeError`、`ExecutionNotPreparedError`。
+
+**实际验证（2026-08-05）**：
+- `pytest tests/forgeflow -q` → **61 passed, 1 skipped**（skip = Windows 无符号链接权限），M3 新增 10 项（5 路径单测 + 4 集成 + 1 清理）
+- `ruff check src/forgeflow tests/forgeflow` → clean
+- `MYPYPATH=src mypy src/forgeflow --explicit-package-bases --python-version 3.11` → Success（16 文件）
+
+**验收对应**：不修改原工作目录（`test_task_change_isolated_from_original` 断言原仓库文件未变）；路径越界拒绝（`..`、绝对路径、符号链接 → `PathEscapeError`）；超时终止子进程（`time.sleep(30)` timeout=2 → `timed_out`）；3 个固定任务完成（跑测试 / 改动隔离 / 安全约束）；失败可清理（`test_cleanup_removes_worktree`）。
 
 ## M4 — 代码修改与质量门禁
 

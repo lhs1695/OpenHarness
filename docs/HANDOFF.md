@@ -3,17 +3,17 @@
 > 每次会话结束/里程碑结束更新本文件。新会话开始先读 `PROJECT_SPEC.md`、`docs/ARCHITECTURE.md`、`docs/PLANS.md`、`docs/UPSTREAM_MAP.md` 与本文件。
 
 ## 上次更新
-- 2026-08-05（M2 实现完成，待独立审查）
+- 2026-08-05（M3 实现完成，待独立审查）
 
 ## 当前状态
 
-- **里程碑**：M0 ✅；M1 ✅（已 merge）；M2 实现完成（52 单测、ruff/mypy clean），待独立审查后 merge 回 develop。
+- **里程碑**：M0 ✅；M1 ✅（已 merge）；M2 ✅（已 merge）；M3 实现完成（61 单测、ruff/mypy clean），待独立审查后 merge 回 develop。
 - **分支/worktree**：
   - `main` @ `af94671`（可发布，含 setup 文档）
-  - `develop` @ `1c62268`（含 M0 审计 + M1 适配层，已推送 origin）
-  - `milestone/m2-control-plane` @ 当前（M2 控制平面实现，**尚未 merge 回 develop**）
+  - `develop` @ `139bc0a`（含 M0 审计 + M1 适配层 + M2 控制平面，已推送 origin）
+  - `milestone/m3-isolation` @ 当前（M3 隔离执行实现，**尚未 merge 回 develop**）
   - 上游基础标签 `upstream-base-0.1.9` @ `9b2efd7`（未推送）
-- **M2 产物**：`src/forgeflow/errors.py`（ForgeFlowError 层级收敛到业务层）、`domain/{policy,risk}.py`、`orchestration/{state_machine,budgets}.py`、`tests/forgeflow/unit/test_{policy,risk,state_machine,budgets}.py`。
+- **M3 产物**：`src/forgeflow/execution/{base,worktree}.py`（`ExecutionBackend` Protocol + `resolve_workspace_path` + `WorktreeExecutionBackend`）、`errors.py` 新增 `PathEscapeError`/`ExecutionNotPreparedError`、`tests/forgeflow/unit/test_execution_base.py`、`tests/forgeflow/integration/test_worktree_backend.py`。
 - **错误层级位置**：`forgeflow/errors.py`（原 `integrations/openharness/exceptions.py` 已删除）。
 
 ## 关键事实（新会话必须知道）
@@ -30,11 +30,11 @@
   - 测试文件 basename 不能与上游 `tests/` 冲突（曾与 `test_sandbox/test_adapter.py` 冲突，已改名 `test_plan_adapter.py`）。
   - 换 worktree 后需重装 editable：`python -m pip install -e ".[dev]" --no-build-isolation`（venv 需已装 `hatchling`、`editables`；build isolation 在代理/镜像下偶发失败）。
 
-## 下一步（M3）
+## 下一步（M4）
 
-1. M2 独立审查（§17.4）→ merge `milestone/m2-control-plane` 回 `develop` → 清理 m2 worktree → push develop。
-2. 从 `develop` 建 `milestone/m3-isolation` worktree。
-3. 按 `docs/PLANS.md` M3：`execution/{base,worktree}.py`（适配 `WorktreeManager`，`swarm/worktree.py:135`）+ 路径越界/超时终止/清理验收测试。
+1. M3 独立审查（§17.4）→ merge `milestone/m3-isolation` 回 `develop` → 清理 m3 worktree → push develop。
+2. 从 `develop` 建 `milestone/m4-quality` worktree。
+3. 按 `docs/PLANS.md` M4：`quality/gates.py` + `quality/reports.py`（门禁只对改动文件跑 ruff/mypy）+ 禁止路径/Diff 大小门禁 + 5 个固定任务可复现。
 
 ## 待办/风险
 
