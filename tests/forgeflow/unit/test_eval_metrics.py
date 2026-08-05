@@ -34,3 +34,17 @@ def test_metrics_mixed() -> None:
     assert metrics["completion_rate"] == round(1 / 3, 4)
     assert metrics["error_count"] == 1
     assert metrics["forbidden_path_touches"] == 1
+
+
+def test_metrics_counts_failure_classes() -> None:
+    results = [
+        EvalResult(case_id="a", strategy="s", status="passed", failure_class="pass"),
+        EvalResult(case_id="b", strategy="s", status="failed", failure_class="baseline"),
+        EvalResult(case_id="c", strategy="s", status="failed", failure_class="baseline"),
+        EvalResult(case_id="d", strategy="s", status="failed", failure_class="policy"),
+        EvalResult(case_id="e", strategy="s", status="error", failure_class="error"),
+    ]
+    metrics = compute_metrics(results)
+    assert metrics["baseline_count"] == 2
+    assert metrics["policy_count"] == 1
+    assert metrics["error_count"] == 1

@@ -16,15 +16,16 @@ def render_report(result: ExperimentResult) -> str:
         f"- 创建时间：{result.created_at}",
         "",
         "## 汇总指标（按策略）",
-        "| 策略 | 完成率 | 通过/总数 | 测试通过率 | 平均Token | 平均成本 | 平均耗时 |",
-        "|---|---|---|---|---|---|---|",
+        "| 策略 | 完成率 | 通过/总数 | 基线失败 | 策略失败 | 平均Token | 平均成本 | 平均耗时 |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for strategy, metrics in result.metrics_by_strategy.items():
         lines.append(
             f"| {strategy} | {metrics['completion_rate']:.2%} | "
             f"{metrics['pass_count']}/{metrics['case_count']} | "
-            f"{metrics['test_pass_rate']:.2%} | {metrics['avg_tokens']} | "
-            f"${metrics['avg_cost_usd']:.6f} | {metrics['avg_duration_ms']}ms |"
+            f"{metrics['baseline_count']} | {metrics['policy_count']} | "
+            f"{metrics['avg_tokens']} | ${metrics['avg_cost_usd']:.6f} | "
+            f"{metrics['avg_duration_ms']}ms |"
         )
     lines.append("")
     lines.append("## 失败案例")
@@ -34,5 +35,16 @@ def render_report(result: ExperimentResult) -> str:
     else:
         for failure in failures:
             detail = failure.error or "failed"
-            lines.append(f"- `{failure.case_id}` [{failure.strategy}] **{failure.status}** — {detail}")
+            label = _FAILURE_LABELS.get(failure.failure_class, failure.failure_class)
+            lines.append(
+                f"- `{failure.case_id}` [{failure.strategy}] **{label}** — {detail}"
+            )
     return "\n".join(lines)
+
+
+_FAILURE_LABELS = {
+    "baseline": "基线失败（测试未通过，未施加修复）",
+    "policy": "策略门禁失败",
+    "error": "意外错误",
+    "pass": "通过",
+}
