@@ -8,7 +8,7 @@
 | 里程碑 | 状态 | worktree / 分支 | 关键产出 |
 |---|---|---|---|
 | M0 上游审计与基线 | ✅ 完成（2026-08-05，已审查） | `milestone/m0-audit` | `docs/audit/*`、`docs/UPSTREAM_MAP.md`、`docs/adr/0001` |
-| M1 最小适配层与垂直链路 | 待开始 | `milestone/m1-adapter` | `src/forgeflow/integrations/openharness/*` |
+| M1 最小适配层与垂直链路 | ✅ 实现完成（待独立审查） | `milestone/m1-adapter` | `src/forgeflow/integrations/openharness/*` + `domain/task.py` + 测试 |
 | M2 状态机/风险/预算 | 待开始 | `milestone/m2-control-plane` | `domain/*`、`orchestration/*` |
 | M3 Local Worktree 隔离执行 | 待开始 | `milestone/m3-isolation` | `execution/worktree.py` |
 | M4 代码修改与质量门禁 | 待开始 | `milestone/m4-quality` | `quality/*` |
@@ -19,24 +19,35 @@
 | M9 数据回流与经验闭环 | 待开始 | `milestone/m9-feedback` | `evaluation/datasets.py` |
 | M10 包装与维护 | 待开始 | `milestone/m10-packaging` | README、CI、40+ 测试 |
 
-## M1 — 最小适配层与垂直链路（下一个）
+## M1 — 最小适配层与垂直链路（实现完成，待独立审查）
 
 **目标**：打通 `DevelopmentTask → Adapter → 分析测试仓库 → 生成计划 → 结构化结果`。不接 DB/队列，内存状态，单任务单进程。
 
-**落地文件**（审计后确认，仅这些）：
+**落地文件**：
 ```text
 src/forgeflow/__init__.py
+src/forgeflow/py.typed
 src/forgeflow/domain/task.py            # DevelopmentTask（pydantic，最小字段）
-src/forgeflow/integrations/openharness/adapter.py      # S1/S2 接缝
+src/forgeflow/integrations/openharness/adapter.py      # S1 接缝：EngineLike + run_plan
 src/forgeflow/integrations/openharness/event_mapper.py # StreamEvent → TraceEvent
 src/forgeflow/integrations/openharness/exceptions.py   # ForgeFlowError 层级
-tests/forgeflow/unit/test_adapter.py
+tests/forgeflow/unit/test_adapter.py                   # 13 项（fake engine）
 tests/forgeflow/unit/test_event_mapper.py
 tests/forgeflow/integration/test_vertical_chain.py      # online marker
-tests/forgeflow/fixtures/repositories/                  # 最小 fixture 仓库
+tests/forgeflow/fixtures/repositories/billing-service/  # 最小 fixture 仓库
+pyrightconfig.json                                       # extraPaths=src（编辑器）
 ```
 
-**对 `pyproject.toml` 的唯一改动**（ADR 0001 已声明）：wheel 增加 `src/forgeflow`；dev 依赖固定 `mcp<2.0.0` + 加 `tzdata`；pytest 加 `online` marker。
+**对 `pyproject.toml` 的改动**（ADR 0001 已声明）：wheel 增加 `src/forgeflow`；dev 依赖固定 `mcp<2.0.0` + 加 `tzdata`；pytest 加 `online` marker + `addopts = "-m \"not online\""`。
+
+**实际验证结果（2026-08-05）**：
+- 单元测试：`pytest tests/forgeflow -q` → **13 passed, 1 deselected**（online 默认跳过）
+- 垂直链路（真实模型）：`pytest -m online tests/forgeflow/integration/test_vertical_chain.py` → **1 passed**（41.6s，DeepSeek 端点，输出结构化 TaskPlan + token）
+- Lint：`ruff check src/forgeflow tests/forgeflow` → **clean**
+- 类型：`MYPYPATH=src mypy src/forgeflow --explicit-package-bases --python-version 3.11` → **Success**（8 文件）
+- 设计要点：adapter 通过注入的 `EngineLike` 驱动引擎（接口隔离，便于 Mock）；业务层不 import `openharness.*`；`TraceEvent`/`TaskPlan` 为 ForgeFlow 类型。
+
+**注意**：ForgeFlow 的 mypy 需用上述命令（editable 安装 + py.typed 会导致 plain `mypy src/forgeflow` 报模块重复）。
 
 **验收**：
 - 固定测试仓库 + 任务 → 输出结构化计划（目标文件、步骤、风险点、测试计划、token/时长）；
