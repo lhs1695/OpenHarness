@@ -23,7 +23,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "httpx>=0.27.0",
     "websockets>=12.0",
-    "mcp>=1.0.0",
+    "mcp>=1.0.0,<2.0.0",
     "pyperclip>=1.9.0",
     "pyyaml>=6.0",
     "questionary>=2.0.1",
@@ -43,6 +43,7 @@ dev = [
     "pytest-cov>=5.0.0",
     "ruff>=0.5.0",
     "mypy>=1.10.0",
+    "tzdata>=2024.0",
 ]
 
 [project.scripts]
@@ -52,7 +53,7 @@ openh = "openharness.cli:app"
 ohmo = "ohmo.cli:app"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/openharness", "ohmo"]
+packages = ["src/openharness", "src/forgeflow", "ohmo"]
 
 [tool.hatch.build]
 exclude = [
@@ -75,6 +76,10 @@ exclude = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+addopts = "-m \"not online\""
+markers = [
+    "online: requires a real model API (skipped by default)",
+]
 
 [tool.ruff]
 line-length = 100
