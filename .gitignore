@@ -38,3 +38,6 @@ uv.lock
 
 # Claude Desktop worktrees
 .claude/worktrees/
+
+# Local git-initialized repos mounted by docker compose (see docker-compose.yml)
+.docker/repos/

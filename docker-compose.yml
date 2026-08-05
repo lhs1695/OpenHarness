@@ -3,7 +3,8 @@
 # FORGEFLOW_REPO_PATH (and FORGEFLOW_REPOSITORY) on the api service.
 services:
   postgres:
-    image: postgres:16
+    # alpine variant: smaller and pulled successfully on this CN mirror
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: forgeflow
       POSTGRES_PASSWORD: forgeflow
@@ -17,7 +18,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7
+    image: redis:7-alpine
     ports:
       - "6379:6379"
 
@@ -30,7 +31,9 @@ services:
       FORGEFLOW_REPO_PATH: /repos/billing-service
       FORGEFLOW_REPOSITORY: billing-service
     volumes:
-      - ./tests/forgeflow/fixtures/repositories/billing-service:/repos/billing-service:ro
+      # git-initialized copy of the fixture (see .docker/repos/ — the worktree
+      # backend requires a real git repository and needs to write worktree refs)
+      - ./.docker/repos/billing-service:/repos/billing-service
     ports:
       - "8000:8000"
     depends_on:
@@ -48,7 +51,7 @@ services:
       FORGEFLOW_REPO_PATH: /repos/billing-service
       FORGEFLOW_REPOSITORY: billing-service
     volumes:
-      - ./tests/forgeflow/fixtures/repositories/billing-service:/repos/billing-service:ro
+      - ./.docker/repos/billing-service:/repos/billing-service
     depends_on:
       - redis
       - postgres
