@@ -1,0 +1,54 @@
+# ForgeFlow base services (M6).
+# The API requires a local repository to execute against: mount one and set
+# FORGEFLOW_REPO_PATH (and FORGEFLOW_REPOSITORY) on the api service.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: forgeflow
+      POSTGRES_PASSWORD: forgeflow
+      POSTGRES_DB: forgeflow
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forgeflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    command: uvicorn forgeflow.api.server:app --host 0.0.0.0 --port 8000
+    environment:
+      FORGEFLOW_DATABASE_URL: postgresql+psycopg2://forgeflow:forgeflow@postgres/forgeflow
+      FORGEFLOW_CELERY_BROKER: redis://redis:6379/0
+      FORGEFLOW_REPO_PATH: /repos/billing-service
+      FORGEFLOW_REPOSITORY: billing-service
+    volumes:
+      - ./tests/forgeflow/fixtures/repositories/billing-service:/repos/billing-service:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build: .
+    command: celery -A forgeflow.infrastructure.celery_app worker --pool=solo --loglevel=info
+    environment:
+      FORGEFLOW_DATABASE_URL: postgresql+psycopg2://forgeflow:forgeflow@postgres/forgeflow
+      FORGEFLOW_CELERY_BROKER: redis://redis:6379/0
+      FORGEFLOW_REPO_PATH: /repos/billing-service
+      FORGEFLOW_REPOSITORY: billing-service
+    volumes:
+      - ./tests/forgeflow/fixtures/repositories/billing-service:/repos/billing-service:ro
+    depends_on:
+      - redis
+      - postgres

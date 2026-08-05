@@ -3,18 +3,19 @@
 > 每次会话结束/里程碑结束更新本文件。新会话开始先读 `PROJECT_SPEC.md`、`docs/ARCHITECTURE.md`、`docs/PLANS.md`、`docs/UPSTREAM_MAP.md` 与本文件。
 
 ## 上次更新
-- 2026-08-05（M5 实现完成，待独立审查）
+- 2026-08-05（M6 实现完成，待独立审查）
 
 ## 当前状态
 
-- **里程碑**：M0 ✅；M1–M4 ✅（已 merge）；M5 实现完成（106 单测 + 1 在线 Review、ruff/mypy clean），待独立审查后 merge 回 develop。
+- **里程碑**：M0 ✅；M1–M5 ✅（已 merge）；M6 实现完成（123 单测 + API/SSE/持久化/Celery 集成、ruff/mypy clean），待独立审查后 merge 回 develop。
 - **分支/worktree**：
   - `main` @ `af94671`（可发布，含 setup 文档）
-  - `develop` @ `f2b3453`（含 M0–M4，已推送 origin）
-  - `milestone/m5-approval` @ 当前（M5 审批/Reviewer/交付实现，**尚未 merge 回 develop**）
+  - `develop` @ `fb434de`（含 M0–M5，已推送 origin）
+  - `milestone/m6-service` @ 当前（M6 服务化实现，**尚未 merge 回 develop**）
   - 上游基础标签 `upstream-base-0.1.9` @ `9b2efd7`（未推送）
-- **M5 产物**：`domain/approval.py`（幂等审批 + 审计）、`quality/reviewer.py`（只读 Reviewer + `build_review_engine`）、`quality/gates.py` + `reviewer_gate`、`orchestration/delivery.py`（Patch + Draft PR 守卫）、tests（approval/reviewer/delivery + 在线 reviewer）。
+- **M6 产物**：`infrastructure/{database,models,store,celery_app}.py`、`application/{event_bus,task_orchestrator,task_service,executors,factory}.py`、`api/{app,schemas,server}.py`、`Dockerfile`、`docker-compose.yml`。
 - **错误层级位置**：`forgeflow/errors.py`（原 `integrations/openharness/exceptions.py` 已删除）。
+- **服务依赖**：pyproject 新增 `service` extra（fastapi/sqlalchemy/celery/redis/psycopg2）；venv 已装。
 
 ## 关键事实（新会话必须知道）
 
@@ -30,15 +31,17 @@
   - 测试文件 basename 不能与上游 `tests/` 冲突（曾与 `test_sandbox/test_adapter.py` 冲突，已改名 `test_plan_adapter.py`）。
   - 换 worktree 后需重装 editable：`python -m pip install -e ".[dev]" --no-build-isolation`（venv 需已装 `hatchling`、`editables`；build isolation 在代理/镜像下偶发失败）。
 
-## 下一步（M6）
+## 下一步（M7）
 
-1. M5 独立审查（§17.4）→ merge `milestone/m5-approval` 回 `develop` → 清理 m5 worktree → push develop。
-2. 从 `develop` 建 `milestone/m6-service` worktree。
-3. 按 `docs/PLANS.md` M6：`application/` + `api/` + `infrastructure/`（FastAPI + PostgreSQL + Redis + Celery + SSE + Docker Compose）+ 任务 API（建/启/查/取消）+ SSE 实时事件 + 重启不丢。Windows：Celery `--pool=solo`；先验证 WSL2。
+1. M6 独立审查（§17.4）→ merge `milestone/m6-service` 回 `develop` → 清理 m6 worktree → push develop。
+2. 从 `develop` 建 `milestone/m7-trace` worktree。
+3. 按 `docs/PLANS.md` M7：`trace/{events,collector,redaction,repository}.py`（统一事件模型 + Collector + 脱敏 + 时间线查询 + Token/成本/延迟 + 失败分类），数据源 `StreamEvent`（`engine/stream_events.py:82`）；任务可导出 JSONL；父子/并行 span 可还原。
 
 ## 待办/风险
 
 - 未推送任何内容到 `upstream`（HKUDS/OpenHarness）。所有推送仅到 `origin`（自己的 fork）。
-- `milestone/m2-control-plane` 分支与 `upstream-base-0.1.9` 标签尚未推送。
+- `milestone/m6-service` 分支与 `upstream-base-0.1.9` 标签尚未推送。
+- **Docker daemon/WSL2 本机未运行**：`docker compose up` 需先启动 Docker Desktop；compose 文件已通过 `config --quiet` 语法校验。
 - `test_autopilot`、`test_cron_scheduler` 等失败待 Linux CI 复验（见 BASELINE §4）。
 - 在线垂直链路依赖 DeepSeek 端点与凭据；模型输出格式为 best-effort 解析（M8 评测再收紧）。
+- **venv 陷阱**：换 worktree 后若 editable 指向已删除的旧 worktree，需 `pip uninstall openharness-ai` + 清理 `site-packages/openharness` + 重装 `pip install -e ".[dev,service]" --no-build-isolation`。
