@@ -5,8 +5,8 @@ from collections.abc import AsyncIterator
 import pytest
 
 from forgeflow.domain.task import DevelopmentTask
+from forgeflow.errors import AdapterError, MaxTurnsExceededError
 from forgeflow.integrations.openharness.adapter import OpenHarnessAdapter
-from forgeflow.integrations.openharness.exceptions import AdapterError, MaxTurnsExceededError
 from openharness.api.usage import UsageSnapshot
 from openharness.engine.messages import ConversationMessage, TextBlock
 from openharness.engine.query import MaxTurnsExceeded

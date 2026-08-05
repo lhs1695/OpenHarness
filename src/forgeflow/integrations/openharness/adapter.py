@@ -13,8 +13,8 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from forgeflow.domain.task import DevelopmentTask
+from forgeflow.errors import AdapterError, MaxTurnsExceededError
 from forgeflow.integrations.openharness.event_mapper import TraceEvent, map_stream_event
-from forgeflow.integrations.openharness.exceptions import AdapterError, MaxTurnsExceededError
 from openharness.engine.query import MaxTurnsExceeded
 from openharness.engine.stream_events import (
     AssistantTextDelta,
