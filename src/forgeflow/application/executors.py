@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Protocol
 
 from forgeflow.domain.policy import RepositoryPolicy
+from forgeflow.evaluation.datasets import EvalCase, EvalResult
+from forgeflow.evaluation.strategies import EvalStrategy
 from forgeflow.execution.base import ExecutionResult
 from forgeflow.execution.worktree import WorktreeExecutionBackend
 from forgeflow.infrastructure.store import StoredTask
@@ -63,3 +65,72 @@ class LocalTaskExecutor:
             )
         finally:
             await backend.cleanup()
+
+
+def stored_to_case(task: StoredTask) -> EvalCase:
+    """Adapt a persisted StoredTask into the evaluation EvalCase surface."""
+    return EvalCase(
+        case_id=task.id,
+        repository=task.repository,
+        title=task.title,
+        description=task.description,
+        task_type=task.task_type,
+        priority=task.priority,
+        acceptance_rules=tuple(task.acceptance_criteria),
+        tags=tuple(task.risk_tags),
+    )
+
+
+def outcome_from_eval(result: EvalResult) -> ExecutionOutcome:
+    """Map an online-strategy EvalResult onto the orchestrator's ExecutionOutcome."""
+    gate_summary: dict[str, object] = {
+        "status": result.status,
+        "failure_class": result.failure_class,
+        "tests_passed": result.tests_passed,
+        "token_usage": result.token_usage,
+        "cost": result.cost,
+        "duration_ms": result.duration_ms,
+    }
+    if result.status == "passed":
+        return ExecutionOutcome(status="completed", gate_summary=gate_summary)
+    return ExecutionOutcome(
+        status="failed",
+        error=result.error,
+        gate_summary=gate_summary,
+    )
+
+
+class ModelDrivenTaskExecutor:
+    """Execute a task with a real OpenHarness agent in an isolated worktree.
+
+    Reuses the online plan_gates strategy (adapter plan -> agent repair ->
+    quality gates) and adapts StoredTask -> EvalCase -> ExecutionOutcome.  This
+    wires the service path (``FORGEFLOW_EXECUTOR=model``) to the model-driven
+    evaluation engine; requires API credentials.  Wall-clock/turn budgets come
+    from the strategy's bounds.
+    """
+
+    def __init__(
+        self,
+        *,
+        repo_path: str | Path,
+        policy: RepositoryPolicy,
+        strategy: EvalStrategy | None = None,
+    ) -> None:
+        from forgeflow.evaluation.strategies_online import PlanGatesStrategy
+
+        self._repo_path = Path(repo_path).resolve()
+        self._policy = policy
+        self._strategy = strategy or PlanGatesStrategy(name="plan_gates", policy=policy)
+
+    @property
+    def strategy(self) -> EvalStrategy:
+        return self._strategy
+
+    async def execute(self, task: StoredTask) -> ExecutionOutcome:
+        result = await self._strategy.run(
+            stored_to_case(task),
+            repo_path=self._repo_path,
+            strategy_name=self._strategy.name,
+        )
+        return outcome_from_eval(result)

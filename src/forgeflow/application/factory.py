@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 
 from forgeflow.application.event_bus import EventBus
-from forgeflow.application.executors import LocalTaskExecutor
+from forgeflow.application.executors import LocalTaskExecutor, TaskExecutor
 from forgeflow.application.task_orchestrator import TaskOrchestrator
 from forgeflow.application.task_service import PolicyProvider, TaskService
 from forgeflow.domain.approval import ApprovalManager
@@ -33,7 +33,14 @@ def create_service_from_env() -> TaskService:
     approvals = ApprovalManager()
 
     policy = RepositoryPolicy(repository=repository)
-    executor = LocalTaskExecutor(repo_path=repo_path, policy=policy)
+    executor: TaskExecutor
+    executor_mode = os.environ.get("FORGEFLOW_EXECUTOR", "local")
+    if executor_mode == "model":
+        from forgeflow.application.executors import ModelDrivenTaskExecutor
+
+        executor = ModelDrivenTaskExecutor(repo_path=repo_path, policy=policy)
+    else:
+        executor = LocalTaskExecutor(repo_path=repo_path, policy=policy)
     orchestrator = TaskOrchestrator(
         store=store, event_bus=event_bus, executor=executor, approvals=approvals
     )
