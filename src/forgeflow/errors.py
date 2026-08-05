@@ -35,3 +35,11 @@ class UnsupportedOperationError(ForgeFlowError):
 
 class IllegalTransitionError(ForgeFlowError):
     """A state-machine transition is not allowed from the current state."""
+
+
+class PathEscapeError(ForgeFlowError):
+    """A resolved path is outside the task workspace."""
+
+
+class ExecutionNotPreparedError(ForgeFlowError):
+    """The execution backend has not been prepared yet."""
