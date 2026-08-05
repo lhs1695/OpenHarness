@@ -44,7 +44,7 @@
 2. **补写暂缓文档**：✅ `docs/RETROSPECTIVE.md`（一页复盘）与 `docs/RESUME.md`（PROJECT_SPEC §20 模板填真实数字）已补齐。
 3. **经验检索 before/after（P0-2）**：✅ 已完成。plan_gates 75% → 87.5%（`evals/reports/2026-08-05-online-default-retrieval.md`）；机制见 `docs/NEXT_PHASE.md` P0-2。
 4. **服务层模型驱动 executor（P1-1）**：✅ 已完成。`FORGEFLOW_EXECUTOR=model` 即可用真实 Agent 执行服务任务；见 `docs/NEXT_PHASE.md` P1-1。
-5. **待做**：CI 扩展（P2-2，可加 Linux 上游 tests 复验 / 在线冒烟）；服务路径质量门禁补 required_commands（P0-1 遗留，可加 `FORGEFLOW_REQUIRED_COMMANDS`）；上游同步（P2-1，当前 upstream 无新提交）。
+5. **待做/持续**：服务路径质量门禁补 required_commands（P0-1 遗留，可加 `FORGEFLOW_REQUIRED_COMMANDS`）；CI 在线评测 job（需 DeepSeek secret）；上游同步（P2-1，当前 upstream 无新提交）；质量基线维护（P2-3）。
 
 ## 待办/风险
 

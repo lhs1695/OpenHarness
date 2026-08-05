@@ -43,10 +43,10 @@
 - **规则**：仅里程碑间隙、且为安全/兼容/严重 bugfix 时 `git fetch upstream` → 独立 `sync/upstream-<sha>` 分支 → 上游测试 → ForgeFlow 回归 → 更新 `UPSTREAM_MAP`。
 - **验收**：`UPSTREAM_MAP` 更新；`src/openharness` 仍 0 修改（确需修改须 `patches/` + ADR）。
 
-### P2-2 CI 扩展（可选）
-- **现状**：CI 只跑 `tests/forgeflow`，默认跳过 online，不含上游 `tests/`（故"14 个 Windows 预存失败"目前无 CI 复验）。
-- **可选**：加 Linux 上游 `tests/` 复验 job；在线评测冒烟（需配 DeepSeek secret）。
-- **验收**：CI 绿；新 job 不阻塞主流程。
+### P2-2 CI 扩展（可选）—— ✅ 已完成（2026-08-05）
+- 现状：CI 主 job 跑 `tests/forgeflow`（ruff/mypy/pytest，Python 3.11/3.12），默认跳过 online。
+- 新增：`upstream-regression` job（Linux, `continue-on-error: true` 非阻塞）跑 `pytest tests --ignore=tests/forgeflow`（1159 项）——对 14 个 Windows 预存失败做 Linux 复验。
+- 未加在线评测 job：需 DeepSeek secret 才可用（无凭据不硬塞一个会失败的 job）。
 
 ### P2-3 质量基线维护
 - 每个改动后：`pytest tests/forgeflow -q`、`ruff check src/forgeflow tests/forgeflow`、`MYPYPATH=src mypy src/forgeflow --explicit-package-bases --python-version 3.11`。
@@ -54,9 +54,9 @@
 
 ## 3. 依赖与排序建议
 
-- ✅ 已完成：P0-2（检索对比）、P1-1（服务层模型驱动 executor）、P0-1（Docker Compose 端到端验证，含 Dockerfile/compose 修复）。
-- 剩余：P1-2（推标签）、P2-1（上游同步，当前 upstream 无新提交）、P2-2（CI 扩展）、P2-3（质量基线）。
-- 建议顺序：**P1-2 → P2-2 → P2-3（持续）**。
+- ✅ 已完成：P0-2（检索对比）、P1-1（服务层模型驱动 executor）、P0-1（Docker Compose 端到端验证）、P1-2（推标签）、P2-2（CI 扩展）。
+- 剩余/持续：P2-1（上游同步，当前 upstream 无新提交，按规则仅在必要时做）、P2-3（质量基线，持续维护）、P0-1 遗留（服务路径 required_commands 注入）。
+- 建议顺序：**P2-3（持续）→ 按需处理遗留项**。
 
 ## 4. 完成定义
 

@@ -112,7 +112,7 @@ python -m forgeflow.evaluation.runner --dataset default --strategies plan_gates 
 - **2026-08-05 检查**：`upstream/main` 相对 `develop` **0 个新提交**，无需同步；`upstream-base-0.1.9` 标签已推送 origin（P1-2 ✅）。
 
 ### 4.6 已知问题清单（持续维护）
-- 上游全量 14 个 Windows 失败（fcntl/symlink/原子重命名/控制台/进程管理）——**预存平台问题**，非本项目引入；建议在 Linux CI（`.github/workflows/ci.yml`）复验。
+- 上游全量 14 个 Windows 失败（fcntl/symlink/原子重命名/控制台/进程管理）——**预存平台问题**，非本项目引入；已加 Linux CI `upstream-regression` job（`continue-on-error` 非阻塞）复验（P2-2 ✅）。
 - 上游 `ruff`/`mypy` 全树本就不通过（709 / 1188）——质量门禁只对改动文件做检查。
 - 在线测试（`online` marker）需真实凭据，默认跳过。
 
