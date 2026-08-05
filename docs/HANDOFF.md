@@ -3,15 +3,17 @@
 > 每次会话结束/里程碑结束更新本文件。新会话开始先读 `PROJECT_SPEC.md`、`docs/ARCHITECTURE.md`、`docs/PLANS.md`、`docs/UPSTREAM_MAP.md` 与本文件。
 
 ## 上次更新
-- 2026-08-05（M0–M10 全部完成并 merge 回 develop）
+- 2026-08-05（Agent 驱动在线评测完成 + 复盘/简历补齐）
 
 ## 当前状态
 
 - **里程碑**：**M0–M10 全部 ✅（已 merge 回 develop 并推送 origin）**。ForgeFlow 主体开发完成。
+- **在线评测**：✅ 已实现 `raw` / `plan_gates` / `plan_gates_reviewer` 三个 Agent 驱动在线策略（`evaluation/strategies_online.py`，CLI `--online`），跑出真实三策略对比（`evals/reports/2026-08-05-online-default.md`）。
+- **复盘/简历**：✅ `docs/RETROSPECTIVE.md`、`docs/RESUME.md` 已用真实评测数字补齐。
 - **分支/worktree**：
   - `main` @ `af94671`（可发布，含 setup 文档）
-  - `develop` @ `70bb7f4`（含 M0–M10 全部，已推送 origin）
-  - 当前会话 worktree `vigilant-elgamal-93ae55` @ `9b2efd7`（旧基线，仅本会话使用；后续新会话请从 `develop` 派生新 worktree）
+  - `develop`（含 M0–M10 + 本轮在线评测代码与文档，已推送 origin）
+  - 当前会话在 `D:\workspace\OpenHarness-dev`（develop）；历史 worktree `vigilant-elgamal-93ae55` / `gifted-black-a912be` 为旧基线。
   - 上游基础标签 `upstream-base-0.1.9` @ `9b2efd7`（未推送，可选推送）
 - **M0–M10 产物总览**：`src/forgeflow/`（domain/orchestration/integrations/execution/quality/trace/evaluation/api/application/infrastructure，~54 个源文件，mypy clean）、168 个 ForgeFlow 测试、`README.md` + `docs/*`（架构/状态机含 Mermaid、API、SECURITY、UPSTREAM_CONTRIBUTIONS、DEMO、INTERVIEW、EVALUATION 实测报告）、`evals/reports/`、`.github/workflows/ci.yml`、`docker-compose.yml`。
 - **关键事实（可核验）**：`src/openharness/` **0 个源文件被修改**；上游文件改动仅 `pyproject.toml`（wheel/mcp<2.0.0/tzdata/marker/service extra）与 `README.md`（替换为 ForgeFlow 版）。
@@ -34,9 +36,9 @@
 
 ## 下一步（暂缓项，项目主体已完成）
 
-1. **Agent 驱动在线评测**（最高优先，需 DeepSeek 凭据）：跑 `raw` / `plan_gates` / `plan_gates_reviewer` 三策略对比同一数据集，得到真实完成率/测试通过率提升（预期：billing 基线失败案例在 Agent 修复后翻转为通过）。方法：参考 `docs/EVALUATION.md` §3（before/after 对比）+ 复用 `evaluation/strategies.py` 的 `EvalStrategy` 接缝，实现在线策略（adapter 规划 + 编辑 + 门禁 + Reviewer）。这是简历模板（`PROJECT_SPEC.md` §20 的 [X]/[A]/[B]/[C]）真实数字的来源。
-2. **补写暂缓文档**：拿到真实评测数字后写 `docs/RETROSPECTIVE.md`（一页项目复盘）与 `docs/RESUME.md`（简历描述模板填数字）。用户明确：这两项等项目完善再写。
-3. **可选**：推送 `upstream-base-0.1.9` 标签到 origin；`docker compose up` 验证（需启动 Docker Desktop/WSL2）。
+1. **Agent 驱动在线评测**：✅ 已完成。三策略对比 `evals/reports/2026-08-05-online-default.md`：raw **100%（8/8）**、plan_gates **75%（6/8）**、plan_gates_reviewer **75%（6/8）**；基线 25% → 在线 75–100%，门禁策略平均工具失败较 raw 降约 43%。在线策略代码见 `evaluation/strategies_online.py`，运行 `--strategies raw,plan_gates,plan_gates_reviewer --online`。
+2. **补写暂缓文档**：✅ `docs/RETROSPECTIVE.md`（一页复盘）与 `docs/RESUME.md`（PROJECT_SPEC §20 模板填真实数字）已补齐。
+3. **可选**：推送 `upstream-base-0.1.9` 标签到 origin；`docker compose up` 验证（需启动 Docker Desktop/WSL2）；经验检索 before/after 对比实验（在线策略已可跑，`retrieval_comparison` 消费上下文待接入）。
 
 ## 待办/风险
 
@@ -44,6 +46,7 @@
 - `upstream-base-0.1.9` 标签尚未推送。
 - **Docker daemon/WSL2 本机未运行**：`docker compose up` 需先启动 Docker Desktop；compose 文件已通过 `config --quiet` 语法校验。
 - `test_autopilot`、`test_cron_scheduler` 等失败待 Linux CI 复验（见 BASELINE §4）。
-- 在线垂直链路依赖 DeepSeek 端点与凭据；模型驱动的策略区分（raw / plan_gates / plan_gates_reviewer）与端到端演示在 M10 验证；CLI 评测输出中文在 Windows 控制台显示乱码（内容为 UTF-8，正常）。
-- 测试文件 basename 不能与上游 `tests/` 冲突（M9 的 `test_registry.py` 曾与上游 `test_*_registry.py` 冲突，已改名 `test_feedback_registry.py`）。
+- 在线评测数字与 DeepSeek 端点/模型相关：换模型需重跑才可复现；在线策略已加**墙钟超时**（规划 10min / 实现 15min / 评审 5min）避免挂起。
+- 已知真实结果：门禁策略完成率（75%）低于无约束 raw（100%）——如实记录，不夸大。
+- 测试文件 basename 不能与上游 `tests/` 冲突（曾踩 `test_adapter.py`/`test_registry.py`，本轮 `test_strategies_online.py` 自身 unit/integration 同名冲突，integration 已改名 `test_strategies_online_live.py`）。
 - **venv 陷阱**：换 worktree 后若 editable 指向已删除的旧 worktree，需 `pip uninstall openharness-ai` + 清理 `site-packages/openharness` + 重装 `pip install -e ".[dev,service]" --no-build-isolation`。

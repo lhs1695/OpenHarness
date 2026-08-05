@@ -57,9 +57,13 @@ python -m venv .venv
 # 3) 跑 ForgeFlow 测试（默认跳过 online）
 .venv/Scripts/python -m pytest tests/forgeflow -q
 
-# 4) 评测 CLI（确定性本地策略，无需模型）
+# 4) 评测 CLI
+#    本地确定性策略（无需模型）：
 .venv/Scripts/python -m forgeflow.evaluation.runner \
   --dataset default --strategies plan_gates --output evals/reports/report.md
+#    Agent 驱动在线策略（需 API 凭据）：
+.venv/Scripts/python -m forgeflow.evaluation.runner \
+  --dataset default --strategies raw,plan_gates,plan_gates_reviewer --online
 
 # 5) 服务化（Docker Compose：postgres + redis + api + worker）
 #    需先启动 Docker Desktop（本机 WSL2 未运行）
@@ -70,9 +74,10 @@ docker compose up --build
 
 ## 评测与数据回流
 
-- 评测：确定性指标（完成率/测试通过率/禁止路径/Token/成本/耗时），报告**含失败案例**并区分失败类型（基线 / 策略 / 错误）。
-- 当前 `default` 数据集实测（`plan_gates` 本地策略）：**完成率 25%（2/8）**——2 个干净仓库 verify 案例通过，6 个 `billing-service` bugfix 案例因 bug 未修复而判**基线失败**（这是正确信号，需 Agent 驱动策略修复后翻转为通过）。存档见 [evals/reports/](evals/reports/)。
-- 方法学与数据回流管道见 [docs/EVALUATION.md](docs/EVALUATION.md)。
+- 评测：确定性指标（完成率/测试通过率/禁止路径/Token/成本/耗时/工具失败），报告**含失败案例**并区分失败类型（基线 / 策略 / Agent 未修复 / 错误）。
+- **确定性本地基线**（无模型，`plan_gates`）：`default` 数据集**完成率 25%（2/8）**——6 个 `billing-service` bugfix 案例因 bug 未修复判**基线失败**（正确信号，Agent 修复后应翻转）。存档 `evals/reports/2026-08-05-default-plan_gates.md`。
+- **Agent 驱动在线评测**（DeepSeek，真实调用）：raw **100%（8/8）**，plan_gates **75%（6/8）**，plan_gates_reviewer **75%（6/8）**；6 个 billing 基线失败案例在 Agent 修复后翻转，门禁策略的平均工具失败较 raw 降低约 43%。存档 `evals/reports/2026-08-05-online-default.md`。
+- 方法学与数据回流管道见 [docs/EVALUATION.md](docs/EVALUATION.md)；复盘见 [docs/RETROSPECTIVE.md](docs/RETROSPECTIVE.md)；简历见 [docs/RESUME.md](docs/RESUME.md)。
 
 ## 上游 vs 个人贡献
 
@@ -93,6 +98,8 @@ docker compose up --build
 | [docs/UPSTREAM_CONTRIBUTIONS.md](docs/UPSTREAM_CONTRIBUTIONS.md) | 上游贡献说明 |
 | [docs/DEMO.md](docs/DEMO.md) | 3 分钟演示脚本 |
 | [docs/INTERVIEW.md](docs/INTERVIEW.md) | 20 个面试问题 |
+| [docs/RETROSPECTIVE.md](docs/RETROSPECTIVE.md) | 项目复盘（真实评测数字） |
+| [docs/RESUME.md](docs/RESUME.md) | 简历描述（PROJECT_SPEC §20 模板） |
 | [docs/PLANS.md](docs/PLANS.md) / [docs/HANDOFF.md](docs/HANDOFF.md) | 里程碑计划 / 跨会话交接 |
 
 ## License

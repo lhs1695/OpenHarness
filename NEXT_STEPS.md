@@ -5,6 +5,7 @@
 > 2. **§2–§4 是项目整体问题排查与维护的必须后续任务清单**（在线评测、补文档、Docker 验证、上游同步、已知问题、质量基线）。
 >
 > 上一轮交接状态：ForgeFlow M0–M10 全部完成并 merge 回 `develop`（@ `ac23ef2`，已推送 origin）。
+> 本轮交接状态（2026-08-05）：Agent 驱动在线评测已实现并跑出真实三策略对比；`docs/RETROSPECTIVE.md` 与 `docs/RESUME.md` 已补齐（真实数字见 §2）。
 
 ---
 
@@ -33,23 +34,20 @@
 
 ## 本轮任务（按优先级，一项完成再下一项）
 1. [最高优先] 实现 Agent 驱动在线评测
-   - 在 `src/forgeflow/evaluation/strategies.py` 的 `EvalStrategy` 接缝上实现三个**在线策略**，
-     它们真的在隔离 worktree 里让 Agent 修复 `billing-service` 的幂等 bug：
-     - `raw`：直接用 OpenHarness Agent（QueryEngine + 工具）修复，跑仓库测试；
-     - `plan_gates`：先用 Adapter（`run_plan`）出计划，再让 Agent 修复，跑必需命令 + 质量门禁；
-     - `plan_gates_reviewer`：`plan_gates` + 只读 Reviewer（`quality/reviewer.py`）。
-   - 复用：`execution/worktree.py`（隔离 worktree）、`quality/reports.py`（门禁 runner）、
-     `quality/reviewer.py`、`evaluation/metrics.py`（指标）。
-   - 预期：`default` 数据集 6 个 billing 基线失败案例在 Agent 修复后**翻转为通过**，
-     得到 raw / plan_gates / plan_gates_reviewer 三策略的真实完成率对比。
-   - 数字必须真实，禁止编造（PROJECT_SPEC §16）。把报告存 `evals/reports/`。
-2. 写 `docs/RETROSPECTIVE.md`（一页项目复盘）：目标 vs 达成、关键设计、踩过的坑、局限、下一步，含真实数字。
-3. 写 `docs/RESUME.md`（简历描述）：用真实评测数字填 `PROJECT_SPEC.md` §20 模板的 [X]/[A]/[B]/[C]。
-4. 可选：`docker compose up` 验证（需启动 Docker Desktop/WSL2）；推送 `upstream-base-0.1.9` 标签到 origin。
+   - ✅ 已完成：`evaluation/strategies_online.py` 实现 raw / plan_gates / plan_gates_reviewer 三个在线策略，
+     在隔离 worktree 里让真实 Agent 修复 `billing-service` 幂等 bug，CLI `--online` 启用；
+     runner/metrics/reports 增加 `agent_failed` 失败分类与平均工具失败列；在线策略带墙钟超时（规划/实现/评审）。
+   - 结果：`evals/reports/2026-08-05-online-default.md` —— raw **100%（8/8）**、plan_gates **75%（6/8）**、
+     plan_gates_reviewer **75%（6/8）**；6 个 billing 基线失败案例翻转。
+2. 写 `docs/RETROSPECTIVE.md`（一页项目复盘）：✅ 已完成（含真实评测数字与踩过的坑）。
+3. 写 `docs/RESUME.md`（简历描述）：✅ 已完成，用真实数字填 `PROJECT_SPEC.md` §20 模板（[X]=8 案例、[A]=25%→[B]=75%（raw 100%）、[C]≈43% 工具失败下降）。
+4. 可选：`docker compose up` 验证（需启动 Docker Desktop/WSL2）；推送 `upstream-base-0.1.9` 标签到 origin；
+   经验检索 before/after 对比（`retrieval_comparison` + 在线策略上下文注入，尚未接入）。
 
 ## 规则
 - **不改 `src/openharness/` 任何源文件**；新增能力都放 `src/forgeflow/`。
 - 新行为必须有测试；只对改动文件跑 `ruff`/`mypy`（命令见 §3）。
+- 在线评测需真实凭据，结果与 DeepSeek 端点/模型相关——换模型必须重跑才可复现。
 - 完成一项就更新 `docs/HANDOFF.md` 与本文件；结束前汇报：改了什么、真实数字、遗留风险。
 ```
 
@@ -58,10 +56,11 @@
 ## §2 项目现状（关键事实）
 
 - **里程碑**：M0 审计 → M1 适配层 → M2 控制平面 → M3 隔离执行 → M4 质量门禁 → M5 审批/Reviewer → M6 服务化 → M7 Trace → M8 评测 → M9 数据回流 → M10 包装 —— **全部完成**。
-- **Git**：`main` @ `af94671`（可发布）；`develop` @ `ac23ef2`（已推送 origin）；`upstream-base-0.1.9` 标签 @ `9b2efd7`（未推送）。**原仓库 HKUDS/OpenHarness 从未推送**。
+- **Git**：`main` @ `af94671`（可发布）；`develop`（含 M0–M10 + 本轮在线评测，已推送 origin）；`upstream-base-0.1.9` 标签 @ `9b2efd7`（未推送）。**原仓库 HKUDS/OpenHarness 从未推送**。
 - **上游边界（可核验）**：`src/openharness/` **0 个源文件被修改**；上游文件改动仅 `pyproject.toml`（wheel 加 `src/forgeflow`、`mcp<2.0.0`、`tzdata`、`online` marker、`service` extra）与 `README.md`（替换为 ForgeFlow 版）。
-- **代码量**：`src/forgeflow/` ~54 个源文件；ForgeFlow 测试 **168 passed / 1 skipped / 2 deselected**；全量 **1302 passed / 14 failed**（14 项为 Windows 平台预存失败）。
+- **代码量**：`src/forgeflow/` 55 个源文件；ForgeFlow 测试 **181 passed / 1 skipped / 5 deselected（online）**；全量 **1302 passed / 14 failed**（14 项为 Windows 平台预存失败）。
 - **评测基线**：`default` 数据集 `plan_gates` 本地策略完成率 **25%（2/8）**（2 个 cart verify 通过，6 个 billing 基线失败）。存档 `evals/reports/2026-08-05-default-plan_gates.md`。
+- **在线评测（2026-08-05）**：`default` × raw/plan_gates/plan_gates_reviewer（DeepSeek 真实调用）→ 完成率 **100% / 75% / 75%**；6 个 billing 基线失败案例翻转；plan_gates 平均工具失败 0.50 次/案例（较 raw 0.88 降约 43%）。存档 `evals/reports/2026-08-05-online-default.md`。
 
 ## §3 质量命令与环境速查
 
@@ -88,16 +87,17 @@ python -m forgeflow.evaluation.runner --dataset default --strategies plan_gates 
 
 ## §4 必须做的后续任务（问题排查与维护）
 
-### 4.1 Agent 驱动在线评测（最高优先）
-- **为什么**：当前评测只有确定性本地策略（基线失败是"未修复"信号）。简历模板（PROJECT_SPEC §20）的"任务成功率从 [A]% 提升到 [B]%"需要真实 Agent 评测数字。
-- **怎么做**：见 §1 提示词任务 1。关键：在线策略要真的让 Agent 在隔离 worktree 里修改 `payment.py` 修复幂等 bug，然后跑测试 + 门禁。
-- **验收**：三策略对比报告入 `evals/reports/`；数字真实可复现；billing 案例从失败翻转为通过（或如实记录为何未翻转）。
+### 4.1 Agent 驱动在线评测（最高优先）—— ✅ 已完成（2026-08-05）
+- **结果**：三策略在线对比报告 `evals/reports/2026-08-05-online-default.md`；`default` 数据集完成率 raw **100%（8/8）**、plan_gates **75%（6/8）**、plan_gates_reviewer **75%（6/8）**。
+- **代码**：`evaluation/strategies_online.py`（raw / plan_gates / plan_gates_reviewer，CLI `--online`，含墙钟超时）；runner `--online`；metrics/reports 增加 `agent_failed` 与平均工具失败列。
+- **如实记录**：billing-003（负金额）与 billing-005（重构）未被门禁策略修复；billing-005 被 Reviewer 拒绝；门禁策略完成率低于无约束 raw——不夸大。
+- **踩坑**：门禁读文件默认 GBK（中文 Windows）导致首轮 plan_gates 全挂 → 已修 `read_text(encoding="utf-8", errors="replace")` + 回归测试；Agent 无墙钟超时导致挂起 → 已加（规划 10min/实现 15min/评审 5min）。
 
-### 4.2 补写 `docs/RETROSPECTIVE.md`（一页项目复盘）
-- 内容：目标 vs 达成、关键设计决策、踩过的坑（§3 环境坑）、局限与未完成（认证、Docker 沙箱、真实 PR 提交）、下一步。含真实数字。
+### 4.2 补写 `docs/RETROSPECTIVE.md`（一页项目复盘）—— ✅ 已完成
+- 内容：目标 vs 达成、关键设计决策、踩过的坑（含 GBK/超时/上线前的坑）、局限与未完成、下一步。含真实评测数字。
 
-### 4.3 补写 `docs/RESUME.md`（简历描述）
-- 用真实评测数字填 `PROJECT_SPEC.md` §20 模板；**数字必须来自 4.1 的实测**。
+### 4.3 补写 `docs/RESUME.md`（简历描述）—— ✅ 已完成
+- 用真实评测数字填 `PROJECT_SPEC.md` §20 模板：8 个可复现任务、25%→75%（raw 100%）、工具失败降约 43%。
 
 ### 4.4 Docker Compose 验证
 - 启动 Docker Desktop（WSL2）后 `docker compose up --build`，验证 postgres/redis/api/worker 四服务；`GET localhost:8000/api/v1/tasks` 可用。
