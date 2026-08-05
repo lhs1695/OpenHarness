@@ -1,22 +1,25 @@
-"""Delivery: patch generation and Draft PR submission (spec §5, §4.4; PHASE3 B1).
+"""Delivery: patch generation and Draft PR submission (spec §5, §4.4; PHASE3 B1/收尾).
 
 M5 produces a Patch artifact.  For test repositories a Draft PR is prepared
-locally (Draft semantics, no remote).  When a ``GitHubPrClient`` is configured,
-real repositories get an actual Draft PR on GitHub via the gh CLI — the guard
-only rejects real repositories when no GitHub client is available.
+locally (Draft semantics, no remote).  For real repositories, when a remote is
+mapped and a GitHub client is configured, the diff is published as a branch
+(via ``GitHubPublisher``) and a real Draft PR is opened on GitHub.
 """
 
 from __future__ import annotations
 
+import tempfile
 from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 from forgeflow.errors import ForgeFlowError
 
 if TYPE_CHECKING:
-    from forgeflow.infrastructure.github import GitHubPrClient
+    from forgeflow.infrastructure.github import GitHubPrClient, GitHubPublisher
 
 
 @dataclass(frozen=True)
@@ -59,22 +62,28 @@ def make_patch(*, repository: str, diff: str, changed_files: list[str]) -> Patch
 
 
 class DeliveryService:
-    """Prepares delivery artifacts; real Draft PRs require a GitHub client."""
+    """Prepares delivery artifacts; real Draft PRs require a remote + GitHub client."""
 
     def __init__(
         self,
         test_repositories: Collection[str],
         github: GitHubPrClient | None = None,
+        publisher: GitHubPublisher | None = None,
+        remotes: dict[str, str] | None = None,
+        base_branch: str = "main",
     ) -> None:
         self._test_repositories = set(test_repositories)
         self._github = github
+        self._publisher = publisher
+        self._remotes = dict(remotes or {})
+        self._base_branch = base_branch
 
     def create_draft_pr(
         self,
         *,
         repository: str,
         patch: Patch,
-        base: str = "main",
+        base: str = "",
         head: str = "",
     ) -> DraftPr:
         """Create a Draft PR: locally for test repos, on GitHub for real repos."""
@@ -92,17 +101,33 @@ class DeliveryService:
             raise DraftPrGuardError(
                 f"Draft PR 只允许测试仓库：{repository} 不在 {sorted(self._test_repositories)}"
             )
-        if not head:
-            raise DraftPrRemoteError(
-                f"real Draft PR for {repository} requires a head branch (got '')"
+        remote_url = self._remotes.get(repository)
+        if remote_url is None:
+            raise DraftPrGuardError(
+                f"real Draft PR for {repository} requires FORGEFLOW_REPOSITORY_REMOTES "
+                f"mapping for '{repository}'"
             )
+        base = base or self._base_branch
+        branch = head or f"forgeflow/{uuid4().hex[:8]}"
         try:
+            if self._publisher is not None:
+                with tempfile.TemporaryDirectory(prefix="forgeflow-publish-") as tmp:
+                    self._publisher.publish(
+                        repository_url=remote_url,
+                        base_branch=base,
+                        branch_name=branch,
+                        diff=patch.diff,
+                        message=title,
+                        work_dir=Path(tmp) / "repo",
+                    )
+            from forgeflow.infrastructure.github import owner_repo_from_url
+
             info = self._github.create_draft_pr(
                 title=title,
                 body=body,
                 base=base,
-                head=head,
-                repository=repository,
+                head=branch,
+                repository=owner_repo_from_url(remote_url),
             )
         except Exception as exc:
             raise DraftPrRemoteError(

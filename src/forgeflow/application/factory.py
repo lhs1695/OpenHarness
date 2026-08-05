@@ -20,7 +20,7 @@ from forgeflow.infrastructure.database import (
     create_session_factory,
     init_db,
 )
-from forgeflow.infrastructure.github import GitHubPrClient
+from forgeflow.infrastructure.github import GitHubPrClient, GitHubPublisher
 from forgeflow.infrastructure.store import TaskStore
 from forgeflow.orchestration.delivery import DeliveryService
 
@@ -60,13 +60,30 @@ def api_key_auth_from_env() -> ApiKeyAuthenticator | None:
 
 
 def delivery_service_from_env() -> DeliveryService:
-    """Build the delivery service from env: test repos + optional GitHub client."""
+    """Build the delivery service from env: test repos + GitHub client/publisher/remotes.
+
+    ``FORGEFLOW_REPOSITORY_REMOTES`` maps repo name -> clone URL (e.g.
+    ``billing-service=https://github.com/acme/billing-service.git``);
+    ``FORGEFLOW_PR_BASE`` sets the PR base branch (default ``main``).
+    """
     test_repositories = [
         item.strip()
         for item in os.environ.get("FORGEFLOW_TEST_REPOSITORIES", "").split(",")
         if item.strip()
     ]
-    return DeliveryService(test_repositories=test_repositories, github=github_client_from_env())
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    remotes: dict[str, str] = {}
+    for item in os.environ.get("FORGEFLOW_REPOSITORY_REMOTES", "").split(","):
+        if item.strip() and "=" in item:
+            name, url = item.split("=", 1)
+            remotes[name.strip()] = url.strip()
+    return DeliveryService(
+        test_repositories=test_repositories,
+        github=GitHubPrClient(token=token) if token else None,
+        publisher=GitHubPublisher(token=token) if token else None,
+        remotes=remotes,
+        base_branch=os.environ.get("FORGEFLOW_PR_BASE", "main"),
+    )
 
 
 def _repositories_from_env() -> list[str]:
@@ -121,6 +138,7 @@ def create_service_from_env() -> TaskService:
         executor=executor,
         approvals=approvals,
         delivery=delivery_service_from_env(),
+        policy_resolver=provider.get,
     )
     return TaskService(
         store=store,

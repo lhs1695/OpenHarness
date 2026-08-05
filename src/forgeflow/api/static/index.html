@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>ForgeFlow 管理台</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #f5f6f8; color: #222; }
+  header { background: #1e2a3a; color: #fff; padding: 14px 24px; }
+  main { display: flex; gap: 20px; padding: 20px; align-items: flex-start; }
+  section { background: #fff; border: 1px solid #e2e4e8; border-radius: 8px; padding: 16px; }
+  #list { flex: 1 1 40%; min-width: 320px; }
+  #detail { flex: 1 1 60%; min-width: 380px; }
+  h2 { margin-top: 0; font-size: 16px; }
+  input, textarea, select, button { font: inherit; padding: 6px 8px; margin: 3px 0; }
+  textarea { width: 100%; height: 48px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { border-bottom: 1px solid #eee; padding: 6px 8px; text-align: left; }
+  tr[data-id] { cursor: pointer; }
+  tr[data-id]:hover { background: #f0f4ff; }
+  .badge { padding: 2px 8px; border-radius: 10px; font-size: 12px; color: #fff; }
+  .b-completed, .b-passed { background: #2e7d32; }
+  .b-failed, .b-error, .b-severe { background: #c62828; }
+  .b-draft, .b-ready, .b-paused { background: #f9a825; }
+  .b-running, .b-waiting { background: #1565c0; }
+  pre { background: #0f172a; color: #d1e7ff; padding: 10px; border-radius: 6px; overflow: auto; max-height: 320px; font-size: 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .actions button { cursor: pointer; }
+</style>
+</head>
+<body>
+<header><strong>ForgeFlow 管理台</strong></header>
+<main>
+  <section id="list">
+    <h2>任务列表</h2>
+    <button onclick="refresh()">刷新</button>
+    <div style="margin-top:8px">
+      <input id="q" placeholder="筛选（id/仓库/标题/状态）" style="width:92%">
+    </div>
+    <table>
+      <thead><tr><th>ID</th><th>仓库</th><th>标题</th><th>状态</th><th>风险</th><th>属主</th></tr></thead>
+      <tbody id="taskRows"></tbody>
+    </table>
+  </section>
+
+  <section id="detail">
+    <h2>新建任务</h2>
+    <div>
+      <input id="n_repo" placeholder="仓库" style="width:120px">
+      <input id="n_title" placeholder="标题" style="width:220px">
+      <select id="n_type">
+        <option value="bugfix">bugfix</option><option value="feature">feature</option>
+        <option value="test">test</option><option value="docs">docs</option>
+      </select>
+      <select id="n_priority">
+        <option value="P1">P1</option><option value="P2" selected>P2</option><option value="P3">P3</option>
+      </select>
+      <input id="n_risk_score" placeholder="风险分(可选)" style="width:90px">
+    </div>
+    <textarea id="n_desc" placeholder="描述"></textarea>
+    <div>
+      <input id="n_tags" placeholder="风险标签,逗号分隔" style="width:48%">
+      <input id="n_criteria" placeholder="验收标准,分号分隔" style="width:48%">
+    </div>
+    <div><button onclick="createTask()">创建任务</button></div>
+    <hr>
+    <h2>任务详情</h2>
+    <div id="taskDetail"><p>点击左侧任务查看详情。</p></div>
+  </section>
+</main>
+<script>
+const API = "/api/v1";
+let currentTaskId = null;
+
+function esc(s){ const d=document.createElement("div"); d.textContent=s??""; return d.innerHTML; }
+function statusClass(s){ s=(s||"").toLowerCase();
+  if(["completed","passed"].some(x=>s.includes(x))) return "completed";
+  if(["failed","error"].some(x=>s.includes(x))) return "failed";
+  if(["draft","ready","paused","cancelled"].some(x=>s.includes(x))) return "draft";
+  return "running"; }
+
+async function api(path, opts={}){
+  const r = await fetch(API+path, Object.assign({headers:{"Content-Type":"application/json"}}, opts));
+  if(!r.ok){ const t = await r.text(); throw new Error(t); }
+  return r.json();
+}
+
+async function refresh(){
+  const q = (document.getElementById("q").value||"").toLowerCase();
+  const tasks = await api("/tasks");
+  const rows = document.getElementById("taskRows");
+  rows.innerHTML = "";
+  tasks.filter(t=>[t.id,t.repository,t.title,t.status,t.requested_by].join(" ").toLowerCase().includes(q))
+    .forEach(t=>{
+      const tr = document.createElement("tr");
+      tr.dataset.id = t.id;
+      tr.innerHTML = `<td>${esc(t.id)}</td><td>${esc(t.repository)}</td><td>${esc(t.title)}</td>` +
+        `<td><span class="badge b-${statusClass(t.status)}">${esc(t.status)}</span></td>` +
+        `<td>${esc(t.initial_risk_score)}→${esc(t.final_risk_score ?? "-")}</td><td>${esc(t.requested_by)}</td>`;
+      tr.onclick = ()=>selectTask(t.id);
+      rows.appendChild(tr);
+    });
+}
+
+async function selectTask(id){
+  currentTaskId = id;
+  const t = await api("/tasks/"+id);
+  let approvalsHtml = "";
+  try {
+    const approvals = await api("/tasks/"+id+"/approvals");
+    approvalsHtml = `<h3>审批</h3><table><thead><tr><th>类型</th><th>状态</th><th>理由</th><th></th></tr></thead><tbody>` +
+      approvals.map(a=>`<tr><td>${esc(a.approval_type)}</td><td>${esc(a.status)}</td><td>${esc(a.requested_reason)}</td>` +
+        `<td>${a.status==="pending"?`<button onclick="resolveApproval('${a.id}',true)">批准</button> <button onclick="resolveApproval('${a.id}',false)">拒绝</button>`:""}</td></tr>`).join("") +
+      `</tbody></table>`;
+  } catch(e){ approvalsHtml = `<p>${esc(e.message)}</p>`; }
+  let timelineHtml = "";
+  try {
+    const tl = await api("/tasks/"+id+"/timeline");
+    timelineHtml = `<h3>时间线</h3><pre>${esc(tl.map(e=>`${e.timestamp.slice(0,19)} [${e.event_type}] ${e.summary??""}`).join("\n"))}</pre>`;
+  } catch(e){ timelineHtml = `<p>${esc(e.message)}</p>`; }
+  document.getElementById("taskDetail").innerHTML = `
+    <div class="row">
+      <button onclick="taskAction('start')">开始</button>
+      <button onclick="taskAction('pause')">暂停</button>
+      <button onclick="taskAction('resume')">恢复</button>
+      <button onclick="taskAction('cancel')">取消</button>
+    </div>
+    <p><strong>${esc(t.id)}</strong> · ${esc(t.repository)} · <span class="badge b-${statusClass(t.status)}">${esc(t.status)}</span></p>
+    <p>标题：${esc(t.title)}</p>
+    <p>描述：${esc(t.description)}</p>
+    <p>类型：${esc(t.task_type)} · 优先级：${esc(t.priority)} · 属主：${esc(t.requested_by)}</p>
+    <p>风险：${esc(t.initial_risk_score)} → ${esc(t.final_risk_score ?? "-")}</p>
+    ${approvalsHtml}
+    ${timelineHtml}`;
+}
+
+async function createTask(){
+  const tags = document.getElementById("n_tags").value.split(",").map(s=>s.trim()).filter(Boolean);
+  const criteria = document.getElementById("n_criteria").value.split(";").map(s=>s.trim()).filter(Boolean);
+  const body = {
+    repository: document.getElementById("n_repo").value,
+    title: document.getElementById("n_title").value,
+    description: document.getElementById("n_desc").value,
+    task_type: document.getElementById("n_type").value,
+    priority: document.getElementById("n_priority").value,
+    risk_tags: tags, acceptance_criteria: criteria,
+  };
+  const score = document.getElementById("n_risk_score").value;
+  if(score) body.initial_risk_score = Number(score);
+  await api("/tasks", {method:"POST", body: JSON.stringify(body)});
+  document.getElementById("n_title").value=""; document.getElementById("n_desc").value="";
+  refresh();
+}
+
+async function taskAction(action){
+  if(!currentTaskId) return;
+  await api(`/tasks/${currentTaskId}/${action}`, {method:"POST"});
+  selectTask(currentTaskId); refresh();
+}
+
+async function resolveApproval(approvalId, approved){
+  await api(`/approvals/${approvalId}/${approved?"approve":"reject"}`, {
+    method:"POST", body: JSON.stringify({approved, resolved_by:"ui", reason:"UI 操作"})
+  });
+  selectTask(currentTaskId); refresh();
+}
+
+refresh();
+setInterval(()=>{ if(document.visibilityState==="visible"){ refresh(); if(currentTaskId) selectTask(currentTaskId); } }, 5000);
+</script>
+</body>
+</html>

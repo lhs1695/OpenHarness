@@ -149,6 +149,32 @@ async def test_medium_risk_waits_for_final_approval_and_does_not_reexecute(
 
 
 @pytest.mark.asyncio
+async def test_final_risk_score_recorded_after_execution(make_service) -> None:
+    """收尾2: the orchestrator recomputes risk from the actual changed files."""
+    executor = _RecordingExecutor(
+        ExecutionOutcome(
+            status="completed",
+            changed_files=["src/payment.py", "tests/test_payment.py"],
+        )
+    )
+    service = make_service(executor=executor)
+    task = service.create_task(CreateTaskInput(repository="r", title="t"))
+    service.start_task(task.id)
+    await _wait_for(service, task.id, TaskState.COMPLETED)
+    updated = service.get_task(task.id)
+    assert updated.final_risk_score is not None
+
+
+@pytest.mark.asyncio
+async def test_final_risk_score_stays_none_without_changes(make_service) -> None:
+    service = make_service()  # FakeTaskExecutor returns no changed files
+    task = service.create_task(CreateTaskInput(repository="r", title="t"))
+    service.start_task(task.id)
+    await _wait_for(service, task.id, TaskState.COMPLETED)
+    assert service.get_task(task.id).final_risk_score is None
+
+
+@pytest.mark.asyncio
 async def test_approvals_survive_service_restart(make_service) -> None:
     """P0-2: a restarted service (fresh manager, same DB) continues the approval flow."""
     executor = _RecordingExecutor()

@@ -1,17 +1,25 @@
 """B1 tests — real GitHub Draft PR capability + guard semantics.
 
 Exercises the gh-CLI client with a fake runner and the DeliveryService real-PR
-path without touching any remote.
+path without touching any remote; the publisher's git flow is verified against a
+local bare repository.
 """
 
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from forgeflow.application.factory import delivery_service_from_env, github_client_from_env
-from forgeflow.infrastructure.github import GitHubError, GitHubPrClient, GitHubPrInfo
+from forgeflow.infrastructure.github import (
+    GitHubError,
+    GitHubPrClient,
+    GitHubPrInfo,
+    GitHubPublisher,
+    owner_repo_from_url,
+)
 from forgeflow.orchestration.delivery import (
     DeliveryService,
     DraftPrGuardError,
@@ -30,15 +38,17 @@ class _FakeRunner:
     ) -> None:
         self.calls: list[list[str]] = []
         self.envs: list[dict[str, str]] = []
+        self.cwds: list[str | None] = []
         self._returncode = returncode
         self._stdout = stdout
         self._stderr = stderr
 
     def __call__(
-        self, args: list[str], env: dict[str, str]
+        self, args: list[str], env: dict[str, str], cwd: str | None = None
     ) -> subprocess.CompletedProcess[str]:
         self.calls.append(args)
         self.envs.append(env)
+        self.cwds.append(cwd)
         return subprocess.CompletedProcess(
             args, self._returncode, self._stdout, self._stderr
         )
@@ -81,7 +91,11 @@ def test_github_client_raises_on_nonzero_exit() -> None:
 def test_delivery_creates_real_pr_for_real_repo_when_github_configured() -> None:
     runner = _FakeRunner(stdout="https://github.com/acme/prod/pull/7\n")
     github = GitHubPrClient(token="t", runner=runner)
-    service = DeliveryService(test_repositories=["billing-service"], github=github)
+    service = DeliveryService(
+        test_repositories=["billing-service"],
+        github=github,
+        remotes={"prod": "https://github.com/acme/prod.git"},
+    )
     patch = make_patch(repository="prod", diff="+x", changed_files=["a.py"])
 
     pr = service.create_draft_pr(
@@ -92,14 +106,30 @@ def test_delivery_creates_real_pr_for_real_repo_when_github_configured() -> None
     assert pr.number == "7"
     assert pr.repository == "prod"
     assert pr.title == "feat: a.py"
+    # owner/repo was derived from the configured remote URL
+    assert "--repo" in runner.calls[0] and "acme/prod" in runner.calls[0]
 
 
-def test_delivery_real_pr_requires_head_branch() -> None:
+def test_delivery_generates_head_branch_when_not_given() -> None:
+    runner = _FakeRunner(stdout="https://github.com/acme/prod/pull/8\n")
+    service = DeliveryService(
+        test_repositories=["billing-service"],
+        github=GitHubPrClient(token="t", runner=runner),
+        remotes={"prod": "https://github.com/acme/prod.git"},
+    )
+    patch = make_patch(repository="prod", diff="+x", changed_files=["a.py"])
+    pr = service.create_draft_pr(repository="prod", patch=patch)
+    assert pr.url == "https://github.com/acme/prod/pull/8"
+    head_index = runner.calls[0].index("--head")
+    assert runner.calls[0][head_index + 1].startswith("forgeflow/")
+
+
+def test_delivery_requires_remote_mapping_for_real_repo() -> None:
     service = DeliveryService(
         test_repositories=["billing-service"], github=GitHubPrClient(token="t")
     )
     patch = make_patch(repository="prod", diff="+x", changed_files=["a.py"])
-    with pytest.raises(DraftPrRemoteError, match="head branch"):
+    with pytest.raises(DraftPrGuardError, match="REPOSITORY_REMOTES"):
         service.create_draft_pr(repository="prod", patch=patch)
 
 
@@ -108,6 +138,7 @@ def test_delivery_surfaces_github_failure_as_remote_error() -> None:
     service = DeliveryService(
         test_repositories=["billing-service"],
         github=GitHubPrClient(token="t", runner=runner),
+        remotes={"prod": "https://github.com/acme/prod.git"},
     )
     patch = make_patch(repository="prod", diff="+x", changed_files=["a.py"])
     with pytest.raises(DraftPrRemoteError, match="failed"):
@@ -153,3 +184,42 @@ def test_delivery_service_from_env_wires_test_repos(
     service = delivery_service_from_env()
     patch = make_patch(repository="billing-service", diff="+x", changed_files=["a.py"])
     assert service.create_draft_pr(repository="billing-service", patch=patch).url is None
+
+
+def test_owner_repo_from_url() -> None:
+    assert owner_repo_from_url("https://github.com/acme/prod.git") == "acme/prod"
+    assert owner_repo_from_url("git@github.com:acme/prod") == "acme/prod"
+
+
+def test_publisher_pushes_branch_with_diff_to_local_bare_repo(tmp_path: Path) -> None:
+    remote = tmp_path / "remote.git"
+    base = tmp_path / "base"
+    base.mkdir()
+    for args in (
+        ["git", "init", "-q"],
+        ["git", "config", "user.email", "t@t"],
+        ["git", "config", "user.name", "t"],
+    ):
+        subprocess.run(args, cwd=base, check=True)
+    (base / "a.py").write_bytes(b"x = 1\n")  # LF explicitly (Windows write_text would add CRLF)
+    subprocess.run(["git", "add", "-A"], cwd=base, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=base, check=True)
+    subprocess.run(["git", "branch", "-M", "main"], cwd=base, check=True)
+    subprocess.run(["git", "clone", "-q", "--bare", str(base), str(remote)], check=True)
+
+    publisher = GitHubPublisher(token="fake")
+    branch = publisher.publish(
+        repository_url=str(remote),
+        base_branch="main",
+        branch_name="forgeflow/task_1",
+        diff="--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n",
+        message="feat: fix",
+        work_dir=tmp_path / "publish",
+    )
+    assert branch == "forgeflow/task_1"
+
+    fetched = tmp_path / "fetched"
+    subprocess.run(
+        ["git", "clone", "-q", "-b", branch, str(remote), str(fetched)], check=True
+    )
+    assert (fetched / "a.py").read_text(encoding="utf-8") == "x = 2\n"

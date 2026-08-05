@@ -74,3 +74,18 @@ def test_issues_attrs_cases_have_distinct_real_issues() -> None:
     assert len(issue_ids) == len(dataset.cases), "each case must reference a distinct issue"
     urls = {case.metadata["issue_url"] for case in dataset.cases}
     assert len(urls) == len(dataset.cases)
+
+
+def test_materialize_git_repo_preserves_nested_repository_path(tmp_path) -> None:
+    """PHASE3 收尾3: a nested repository name materializes at the runner's path."""
+    from forgeflow.evaluation.fixtures import materialize_dataset_repos
+
+    source = tmp_path / "python-attrs" / "attrs"
+    source.mkdir(parents=True)
+    (source / "a.py").write_text("x = 1\n", encoding="utf-8")
+    work = materialize_dataset_repos(
+        tmp_path, tmp_path / "out", ["python-attrs/attrs"]
+    )
+    repo = work / "python-attrs" / "attrs"
+    assert repo.is_dir()
+    assert (repo / "a.py").exists()

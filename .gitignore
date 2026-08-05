@@ -41,3 +41,9 @@ uv.lock
 
 # Local git-initialized repos mounted by docker compose (see docker-compose.yml)
 .docker/repos/
+
+# Real-repo evaluation fixtures (shallow clones, not committed)
+tests/forgeflow/fixtures/repositories/python-attrs/
+
+# Playwright browser-test artifacts
+.playwright-mcp/

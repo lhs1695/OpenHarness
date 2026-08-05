@@ -33,6 +33,7 @@ class ExecutionOutcome:
     gate_summary: dict[str, object] = field(default_factory=dict)
     command_results: dict[str, ExecutionResult] = field(default_factory=dict)
     patch: Patch | None = None
+    changed_files: list[str] = field(default_factory=list)
 
 
 class TaskExecutor(Protocol):
@@ -115,12 +116,14 @@ class LocalTaskExecutor:
             )
             command_results = dict(report.command_results)
             patch = await _patch_from_workspace(task, workspace, report.changed_files)
+            changed_files = list(report.changed_files)
             if report.passed:
                 return ExecutionOutcome(
                     status="completed",
                     gate_summary=report.summarize(),
                     command_results=command_results,
                     patch=patch,
+                    changed_files=changed_files,
                 )
             return ExecutionOutcome(
                 status="failed",
@@ -128,6 +131,7 @@ class LocalTaskExecutor:
                 error=f"quality gates failed: {report.summarize()['hard_failures']}",
                 command_results=command_results,
                 patch=patch,
+                changed_files=changed_files,
             )
         finally:
             await backend.cleanup()
@@ -309,12 +313,14 @@ class ModelDrivenTaskExecutor:
         outcome = outcome_from_eval(result)
         command_results = command_results_from_eval(result)
         patch = patch_from_eval(task, result)
-        if command_results or patch is not None:
+        changed_files = list(patch.changed_files) if patch is not None else []
+        if command_results or patch is not None or changed_files:
             outcome = ExecutionOutcome(
                 status=outcome.status,
                 error=outcome.error,
                 gate_summary=outcome.gate_summary,
                 command_results={**outcome.command_results, **command_results},
                 patch=patch,
+                changed_files=changed_files,
             )
         return outcome

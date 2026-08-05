@@ -40,6 +40,14 @@ def test_get_missing_task_returns_404(client: TestClient) -> None:
     assert client.get("/api/v1/tasks/nope").status_code == 404
 
 
+def test_index_serves_management_ui(client: TestClient) -> None:
+    """PHASE3 收尾4: the root route serves the simple management UI."""
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "ForgeFlow 管理台" in response.text
+    assert "/api/v1" in response.text
+
+
 def test_cancel_returns_200(client: TestClient) -> None:
     task_id = client.post("/api/v1/tasks", json={"repository": "r", "title": "t"}).json()["id"]
     response = client.post(f"/api/v1/tasks/{task_id}/cancel")

@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 
 from forgeflow.api.auth import ApiKeyAuthenticator, _open_subject
 from forgeflow.api.schemas import ApprovalResolveRequest, CreateTaskRequest, TaskView
@@ -22,6 +23,12 @@ def build_app(
     # When an authenticator is configured, task endpoints require a valid API key
     # and the authenticated subject becomes the task owner (B4).
     auth_dep = auth if auth is not None else _open_subject
+
+    @app.get("/", response_class=HTMLResponse)
+    def index() -> HTMLResponse:
+        """Serve the simple management UI (PHASE3 收尾4)."""
+        html = (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
+        return HTMLResponse(html)
 
     def _get(task_id: str) -> StoredTask:
         try:

@@ -8,6 +8,7 @@ skips already-completed transitions (state machine idempotency).
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -25,11 +26,13 @@ from forgeflow.domain.approval import (
     ApprovalType,
     approval_requirements,
 )
-from forgeflow.domain.risk import RiskLevel, risk_level
+from forgeflow.domain.policy import RepositoryPolicy
+from forgeflow.domain.risk import RiskInputs, RiskLevel, RiskScorer, risk_level
 from forgeflow.errors import IllegalTransitionError
 from forgeflow.infrastructure.store import StoredTask, TaskStore, to_stored_approval
 from forgeflow.orchestration.delivery import Patch, make_patch
 from forgeflow.orchestration.state_machine import TaskEvent, TaskState, TaskStateMachine
+from forgeflow.quality.gates import _is_test_file
 from forgeflow.trace.collector import TraceCollector
 from forgeflow.trace.repository import TraceRepository
 
@@ -46,12 +49,14 @@ class TaskOrchestrator:
         executor: TaskExecutor,
         approvals: ApprovalManager,
         delivery: DeliveryService | None = None,
+        policy_resolver: Callable[[str], RepositoryPolicy] | None = None,
     ) -> None:
         self._store = store
         self._event_bus = event_bus
         self._executor = executor
         self._approvals = approvals
         self._delivery = delivery
+        self._policy_resolver = policy_resolver or (lambda name: RepositoryPolicy(repository=name))
         self._running: dict[str, asyncio.Task[None]] = {}
         self._collector: TraceCollector | None = None
 
@@ -144,6 +149,7 @@ class TaskOrchestrator:
                 self._persist(stored, machine)
                 self._persist_trace(task_id, run_id)
                 return
+            self._record_final_risk(stored, outcome)
             self._advance(stored, machine, TaskEvent.EXECUTION_FINISHED)
             self._advance(stored, machine, TaskEvent.VERIFICATION_FINISHED)
             if outcome.patch is not None:
@@ -170,6 +176,18 @@ class TaskOrchestrator:
             self._deliver(stored)
         self._persist(stored, machine)
         self._persist_trace(task_id, run_id)
+
+    def _record_final_risk(self, stored: StoredTask, outcome: ExecutionOutcome) -> None:
+        """Recompute risk from the actual changed files and persist it (收尾2)."""
+        if not outcome.changed_files:
+            return
+        policy = self._policy_resolver(stored.repository)
+        inputs = RiskInputs(
+            changed_paths=tuple(outcome.changed_files),
+            missing_tests=not any(_is_test_file(path) for path in outcome.changed_files),
+        )
+        final = RiskScorer().score(inputs, policy)
+        self._store.update_task(stored.id, final_risk_score=final.score)
 
     def _type_approved(self, stored: StoredTask, approval_type: ApprovalType) -> bool:
         candidates = [

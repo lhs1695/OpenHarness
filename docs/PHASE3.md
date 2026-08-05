@@ -18,6 +18,15 @@
 - **B5 command_results 落 trace**：✅ 模型 executor 填 command_results → `/timeline` 有 command_finished。
 - **遗留**：A3 跨模型（保留）；A2 运行需 attrs 仓库 fixture；B1 真实远端提交需在隔离测试仓库验证。
 
+## Phase 3 收尾清单（2026-08-05，新增 4 项，仍属 Phase 3）—— ✅ 全部完成
+
+在审计加固基础上补最后缺口，按序实现：**交付闭环 → 风险闭环 → 真实数据跑通 → 简易 UI**。
+
+1. ✅ **真实远端交付闭环（B1 补全）**：`GitHubPublisher`（`infrastructure/github.py`：clone → apply diff → commit → push，`GH_TOKEN` 认证；本地裸仓集成测试验证真实 git push）+ `DeliveryService` 接 `remotes`/`base_branch`/`publisher` + orchestrator `_deliver` 发布后 `gh pr create --draft`；factory 从 `FORGEFLOW_REPOSITORY_REMOTES`（name=clone_url）与 `FORGEFLOW_PR_BASE` 配置。head 分支为空时自动生成 `forgeflow/{uuid}`。**真实远端验证需隔离测试仓库**（代码已可离线完整测试）。
+2. ✅ **final_risk_score 执行后重算**：`ExecutionOutcome.changed_files` 填充（Local 从 report、Model 从 diff）→ orchestrator `_record_final_risk` 用实际 changed_paths 重算风险落 `final_risk_score`（需 `policy_resolver`）。
+3. ✅ **真实仓库 fixture 化跑通 issues-attrs**：浅克隆真实 python-attrs/attrs（3.3MB，git-ignored）为 fixture；**修复嵌套仓库名 materialize 丢路径 bug**（`materialize_git_repo` 保留相对路径）；`--dataset issues-attrs` 离线全量跑通 21 例，真实报告 `evals/reports/2026-08-05-issues-attrs-offline.md`（基线 0/21——**如实标注**：当前 attrs 测试套件在本环境收集失败（缺完整 dev 依赖/与已装 attr 冲突），基线失败不代表 bug 存在，是环境局限）。
+4. ✅ **简易管理 UI**：`src/forgeflow/api/static/index.html`（vanilla JS）由 `GET /` 提供——任务列表/筛选/创建/详情/开始-暂停-恢复-取消/审批批准拒绝/timeline，5s 自动刷新；Playwright 实测通过。
+
 ## 给下一轮对话的提示词（复制本块给 Claude Code）
 
 ```text

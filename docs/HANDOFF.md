@@ -4,7 +4,14 @@
 > 当前状态快照（给新读者，不含交接清单）见 `docs/STATUS.md`。
 
 ## 上次更新
-- 2026-08-05（Phase 3 主流程完成 + **全面代码审计修复 P0–P3 全部落地**）
+- 2026-08-05（Phase 3 主流程 + 审计修复 + **收尾 4 项全部完成**）
+
+## Phase 3 收尾（2026-08-05，新增 4 项完成）
+
+1. **真实远端交付闭环**：`GitHubPublisher`（clone→apply→commit→push，GH_TOKEN）+ `DeliveryService` 接远端映射 + orchestrator 发布后建 Draft PR。测试含**本地裸仓真实 git push 集成测试**。真实远端验证需隔离测试仓库（`FORGEFLOW_REPOSITORY_REMOTES`/`FORGEFLOW_PR_BASE` 配置）。
+2. **final_risk_score 重算**：执行后按实际 changed_files 重算风险落库（`ExecutionOutcome.changed_files` + orchestrator `_record_final_risk`）。
+3. **issues-attrs 跑通**：真实 attrs fixture（git-ignored）+ 修嵌套仓库名 materialize bug + 离线全量 21 例真实报告（基线受测试依赖环境限制，如实标注）。
+4. **简易管理 UI**：`GET /` 静态页（列表/创建/详情/操作/审批/timeline），Playwright 实测通过。
 
 ## Phase 3 加固（2026-08-05，审计修复 P0–P3）
 
