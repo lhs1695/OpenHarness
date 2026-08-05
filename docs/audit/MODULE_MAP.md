@@ -14,7 +14,6 @@
 |---|---|---|
 | `__main__.py` | `python -m openharness` 入口，调用 `app()` | 复用 |
 | `cli.py` | Typer CLI 根命令；`--continue/--resume/--max-turns/--permission-mode/--allowed-tools/--disallowed-tools/--backend-only/--task-worker/--print` 等；分发到 `run_print_mode` / `run_repl` / `run_task_worker` | 复用 + 扩展（ForgeFlow 可加子命令） |
-| `main.py` | 包级主入口（若存在） | 复用 |
 
 ## 目录清单
 
@@ -114,7 +113,7 @@
 - 标记：**复用**（ForgeFlow 任务取消、子进程终止用它）
 
 ### tools — 工具系统
-- 文件：`base.py`（`ToolExecutionContext` 于 `:18`、`ToolResult` 于 `:27`、`BaseTool(ABC)` 于 `:35`、`ToolRegistry` 于 `:60`）、`__init__.py`（`create_default_tool_registry` 于 `:48`，注册约 50 个内置工具）、`bash_tool.py`（`BashTool`）、`agent_tool.py`、`skill_tool.py` 等
+- 文件：`base.py`（`ToolExecutionContext` 于 `:18`、`ToolResult` 于 `:27`、`BaseTool(ABC)` 于 `:35`、`ToolRegistry` 于 `:60`）、`__init__.py`（`create_default_tool_registry` 于 `:48`，注册 40 个内置工具 + MCP 工具）、`bash_tool.py`（`BashTool`）、`agent_tool.py`、`skill_tool.py` 等
 - 标记：**扩展**（ForgeFlow 用 `ToolRegistry` + 插件工具装载机制注册任务工具）
 
 ### ui — 运行时与协议

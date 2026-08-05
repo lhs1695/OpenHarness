@@ -12,7 +12,7 @@ src/openharness/cli.py  Typer app 根命令（cli.py: app）
   ↓ --print 非交互模式
 src/openharness/ui/app.py:177  async def run_print_mode(...)
   ├─ :210  bundle = await build_runtime(...)
-  └─ :304  await handle_line(bundle, ..., render_event=_render_event)
+  └─ :300  await handle_line(bundle, ..., render_event=_render_event)   # render_event 参数于 :304
         ↓
 src/openharness/ui/runtime.py:274  async def build_runtime(...)
   ├─ :367  system_prompt_text = build_runtime_system_prompt(...)   # prompts/context.py:102

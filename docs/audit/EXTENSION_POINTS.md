@@ -5,7 +5,7 @@
 ## A. 官方扩展机制（设计即支持）
 
 ### A1. 工具系统（BaseTool + ToolRegistry）
-- 位置：`tools/base.py:35` `BaseTool(ABC)`；`:60` `ToolRegistry`；`tools/__init__.py:48` `create_default_tool_registry`（注册约 50 个内置工具）
+- 位置：`tools/base.py:35` `BaseTool(ABC)`；`:60` `ToolRegistry`；`tools/__init__.py:48` `create_default_tool_registry`（注册 40 个内置工具 + MCP 工具）
 - 机制：子类实现 `execute(arguments, context) -> ToolResult`，Pydantic `input_model` 自动生成 API schema；`ToolRegistry.to_api_schema()` 提供给模型。
 - 插件工具动态加载：`plugins/loader.py` `_load_plugin_tools`（从 `<plugin_dir>/tools/*.py` 导入 BaseTool 子类）。
 - ForgeFlow：注册「任务执行」「审批」「质量门禁」专用工具；用 `ToolRegistry` 裁剪任务可用工具集。
