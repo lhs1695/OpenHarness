@@ -9,7 +9,8 @@
 
 - **里程碑**：**M0–M10 全部 ✅（已 merge 回 develop 并推送 origin）**。ForgeFlow 主体开发完成。
 - **在线评测**：✅ 已实现 `raw` / `plan_gates` / `plan_gates_reviewer` 三个 Agent 驱动在线策略（`evaluation/strategies_online.py`，CLI `--online`），跑出真实三策略对比（`evals/reports/2026-08-05-online-default.md`）。
-- **复盘/简历**：✅ `docs/RETROSPECTIVE.md`、`docs/RESUME.md` 已用真实评测数字补齐。
+- **经验检索 before/after（P0-2）**：✅ 已实现 `EvalStrategy.run` 可选 `context` + runner `--feedback-dataset` 注入 + `feedback.py` JSON 序列化 + 种子集 `evals/data/seed-experience.json`；实测 plan_gates 75% → 87.5%（`evals/reports/2026-08-05-online-default-retrieval.md`）。
+- **复盘/简历/路线图**：✅ `docs/RETROSPECTIVE.md`、`docs/RESUME.md`、`docs/NEXT_PHASE.md` 已就位。
 - **分支/worktree**：
   - `main` @ `af94671`（可发布，含 setup 文档）
   - `develop`（含 M0–M10 + 本轮在线评测代码与文档，已推送 origin）
@@ -38,7 +39,8 @@
 
 1. **Agent 驱动在线评测**：✅ 已完成。三策略对比 `evals/reports/2026-08-05-online-default.md`：raw **100%（8/8）**、plan_gates **75%（6/8）**、plan_gates_reviewer **75%（6/8）**；基线 25% → 在线 75–100%，门禁策略平均工具失败较 raw 降约 43%。在线策略代码见 `evaluation/strategies_online.py`，运行 `--strategies raw,plan_gates,plan_gates_reviewer --online`。
 2. **补写暂缓文档**：✅ `docs/RETROSPECTIVE.md`（一页复盘）与 `docs/RESUME.md`（PROJECT_SPEC §20 模板填真实数字）已补齐。
-3. **可选**：推送 `upstream-base-0.1.9` 标签到 origin；`docker compose up` 验证（需启动 Docker Desktop/WSL2）；经验检索 before/after 对比实验（在线策略已可跑，`retrieval_comparison` 消费上下文待接入）。
+3. **经验检索 before/after（P0-2）**：✅ 已完成。plan_gates 75% → 87.5%（`evals/reports/2026-08-05-online-default-retrieval.md`）；机制见 `docs/NEXT_PHASE.md` P0-2。
+4. **可选/待做**：`docker compose up` 验证（需 Docker Desktop/WSL2，见 `docs/NEXT_PHASE.md` P0-1）；推送 `upstream-base-0.1.9` 标签；服务层模型驱动 executor（P1-1）；上游同步（P2-1）；CI 扩展（P2-2）。
 
 ## 待办/风险
 

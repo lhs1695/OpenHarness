@@ -72,6 +72,18 @@ Task Trace (SpanEvent)
 - **评审拦截**：plan_gates_reviewer 中 `billing-005` 的修复被独立 Reviewer 拒绝（verdict=request_changes）。
 - **约束的代价/收益**：门禁策略完成率低于 raw（75% vs 100%）且 Token 成本更高，但平均工具失败从 raw 的 0.88 降至 plan_gates 的 0.50 次/案例（约 -43%）。数字如实记录，不夸大"门禁提升成功率"。
 
+### 3.5.2 经验检索 before/after（2026-08-05，P0-2）
+
+> 机制：runner `--feedback-dataset <json>` 注入 `build_retrieval_context`（`evaluation/retrieval.py`）到 Agent 修复提示词；种子数据集 `evals/data/seed-experience.json`（3 个 success 样本：幂等/负金额校验/索引化重构，provenance 标注为 seed，非真实 trace 历史）。"before" 取自 §3.5.1 canonical 运行，同模型同 fixture。
+
+| 方案 | 完成率 | 通过/总数 | 未过案例 |
+|---|---|---|---|
+| plan_gates 不带检索（before） | 75.00% | 6/8 | billing-003、billing-005 |
+| plan_gates 带检索（after，`evals/reports/2026-08-05-online-default-retrieval.md`） | **87.50%** | 7/8 | billing-005 |
+
+- **结论**：注入种子经验后，`billing-003`（负金额校验，命中 seed-002）被修复，完成率 75% → 87.5%；`billing-005`（重构，命中 seed-003）仍未修复。单次运行，含模型随机性；如实记录"检索有帮助但非万能"。
+- **限制**：当前检索按拉丁词重叠打分，中文描述靠 case tags 命中；无真实 trace 历史（M9 反馈管道未接入在线评测轨迹），种子数据集为手工构建。让检索消费真实历史需要在线评测先产出并回流样本（见 `docs/NEXT_PHASE.md`）。
+
 ## 4. 复现路径（spec §12.4）
 
 ```bash

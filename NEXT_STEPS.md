@@ -41,8 +41,8 @@
      plan_gates_reviewer **75%（6/8）**；6 个 billing 基线失败案例翻转。
 2. 写 `docs/RETROSPECTIVE.md`（一页项目复盘）：✅ 已完成（含真实评测数字与踩过的坑）。
 3. 写 `docs/RESUME.md`（简历描述）：✅ 已完成，用真实数字填 `PROJECT_SPEC.md` §20 模板（[X]=8 案例、[A]=25%→[B]=75%（raw 100%）、[C]≈43% 工具失败下降）。
-4. 可选：`docker compose up` 验证（需启动 Docker Desktop/WSL2）；推送 `upstream-base-0.1.9` 标签到 origin；
-   经验检索 before/after 对比（`retrieval_comparison` + 在线策略上下文注入，尚未接入）。
+4. 可选：`docker compose up` 验证（需启动 Docker Desktop/WSL2，见 `docs/NEXT_PHASE.md` P0-1）；推送 `upstream-base-0.1.9` 标签到 origin。
+   - ✅ 经验检索 before/after 已完成：plan_gates 75% → **87.5%**（`evals/reports/2026-08-05-online-default-retrieval.md`；`--feedback-dataset evals/data/seed-experience.json`）。
 
 ## 规则
 - **不改 `src/openharness/` 任何源文件**；新增能力都放 `src/forgeflow/`。
@@ -58,9 +58,10 @@
 - **里程碑**：M0 审计 → M1 适配层 → M2 控制平面 → M3 隔离执行 → M4 质量门禁 → M5 审批/Reviewer → M6 服务化 → M7 Trace → M8 评测 → M9 数据回流 → M10 包装 —— **全部完成**。
 - **Git**：`main` @ `af94671`（可发布）；`develop`（含 M0–M10 + 本轮在线评测，已推送 origin）；`upstream-base-0.1.9` 标签 @ `9b2efd7`（未推送）。**原仓库 HKUDS/OpenHarness 从未推送**。
 - **上游边界（可核验）**：`src/openharness/` **0 个源文件被修改**；上游文件改动仅 `pyproject.toml`（wheel 加 `src/forgeflow`、`mcp<2.0.0`、`tzdata`、`online` marker、`service` extra）与 `README.md`（替换为 ForgeFlow 版）。
-- **代码量**：`src/forgeflow/` 55 个源文件；ForgeFlow 测试 **181 passed / 1 skipped / 5 deselected（online）**；全量 **1302 passed / 14 failed**（14 项为 Windows 平台预存失败）。
+- **代码量**：`src/forgeflow/` 55 个源文件；ForgeFlow 测试 **185 passed / 1 skipped / 5 deselected（online）**；全量 **1302 passed / 14 failed**（14 项为 Windows 平台预存失败）。
 - **评测基线**：`default` 数据集 `plan_gates` 本地策略完成率 **25%（2/8）**（2 个 cart verify 通过，6 个 billing 基线失败）。存档 `evals/reports/2026-08-05-default-plan_gates.md`。
 - **在线评测（2026-08-05）**：`default` × raw/plan_gates/plan_gates_reviewer（DeepSeek 真实调用）→ 完成率 **100% / 75% / 75%**；6 个 billing 基线失败案例翻转；plan_gates 平均工具失败 0.50 次/案例（较 raw 0.88 降约 43%）。存档 `evals/reports/2026-08-05-online-default.md`。
+- **经验检索 before/after（2026-08-05）**：plan_gates 带种子经验（`--feedback-dataset evals/data/seed-experience.json`）→ **87.5%**（7/8），对比不带 75%。存档 `evals/reports/2026-08-05-online-default-retrieval.md`。
 
 ## §3 质量命令与环境速查
 

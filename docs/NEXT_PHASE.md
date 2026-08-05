@@ -23,15 +23,10 @@
   3. wheel `force-include`（`pyproject.toml`）引用 `frontend/terminal/{package.json,tsconfig.json,src}`——文件在仓库**存在**，但 Docker build context 只 COPY `pyproject.toml/README.md/src/`，未含 `frontend/`——hatch 打包时**报错还是静默跳过需实测**；若失败，把 `frontend` 加入 COPY。
 - **涉及**：`Dockerfile`、`docker-compose.yml`、（可能）`pyproject.toml`。
 
-### P0-2 经验检索 before/after 对比实验（M9 未接线的对比）
-- **目标**：同一在线策略（如 plan_gates）带/不带 `build_retrieval_context` 跑 `default` 数据集，比较完成率/测试通过率。
-- **做法**：
-  - 扩展 `EvalStrategy.run` 协议（`evaluation/strategies.py:23-27`）加可选 `context: str = ""`，策略把上下文拼进 `build_fix_prompt`（`evaluation/strategies_online.py`）。
-  - 复用 `retrieve_experience` / `build_retrieval_context`（`evaluation/retrieval.py:22/39`，已实现有测试）。
-  - runner 增加"是否注入检索上下文"开关；用 `retrieval_comparison` 记录注入摘要。
-- **验收**：带/不带两次运行的完成率对比表；数字真实可复现；报告入 `evals/reports/`。
-- **涉及**：`evaluation/strategies.py`、`evaluation/strategies_online.py`、`evaluation/runner.py`；复用 `evaluation/retrieval.py`。
-- **风险**：检索质量依赖反馈数据集规模（当前无真实历史样本，可能命中为空 → 对比"无差异"也如实记录）。
+### P0-2 经验检索 before/after 对比实验（M9 未接线的对比）—— ✅ 已完成（2026-08-05）
+- **结果**：plan_gates 带检索 **87.5%（7/8）** vs 不带检索 **75%（6/8）**（`evals/reports/2026-08-05-online-default-retrieval.md` vs `...online-default.md`）。注入种子经验后 billing-003 被修复；billing-005 仍未修复。单次运行含模型随机性，如实记录。
+- **落地**：`EvalStrategy.run` 协议加可选 `context`；在线策略把 `build_retrieval_context` 拼进 `build_fix_prompt`；runner `--feedback-dataset <json>` 注入；`feedback.py` 加 `dataset_to_json`/`dataset_from_json`；种子集 `evals/data/seed-experience.json`。
+- **遗留**：检索按拉丁词重叠打分，中文描述靠 case tags 命中；无真实 trace 历史（在线评测未回流样本到反馈管道）——让检索消费真实历史是后续工作。
 
 ### P1-1 服务层接真实 Agent executor
 - **目标**：任务服务路径从确定性 `LocalTaskExecutor` 升级为模型驱动 executor。

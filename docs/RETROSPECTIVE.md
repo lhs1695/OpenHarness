@@ -54,6 +54,7 @@
 - 6 个 billing 基线失败案例：raw 全部翻转为通过；plan_gates / plan_gates_reviewer 翻转 4 个，`billing-003`（负金额拒绝）与 `billing-005`（索引化重构）门禁失败未翻转。
 - plan_gates_reviewer 中 `billing-005` 的修复被独立 Reviewer 拒绝（request_changes）——只读评审确实拦下了一次修改。
 - **计划+门禁的代价与收益**：完成率从 raw 的 100% 降到 75%（约 2 倍 Token 成本），但平均工具失败从 0.88 降到 0.50 次/案例（**降低约 43%**）——在更安全的执行约束下用更少的无效工具调用换取了略低的原始通过率。
+- **经验检索 before/after（P0-2）**：注入种子经验后 plan_gates 完成率 75% → **87.5%**（billing-003 被修复，billing-005 仍未过）——检索机制有效但非万能，见 `evals/reports/2026-08-05-online-default-retrieval.md` 与 `docs/EVALUATION.md` §3.5.2。
 
 ## 5. 局限与未完成
 
