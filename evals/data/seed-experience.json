@@ -1,0 +1,37 @@
+{
+  "id": "seed-billing-fixes",
+  "version": "2026-08-05",
+  "samples": [
+    {
+      "id": "seed-001",
+      "task_id": "billing-001",
+      "run_id": "seed",
+      "source_type": "turn",
+      "classification": "success",
+      "content": "fix duplicate charge: in charge() return the existing PaymentRecord when order_id already has a charge, instead of inserting a second record. add a test asserting charge(\"order\", 50) called twice yields len(charges_for(\"order\")) == 1.",
+      "tags": ["payment", "idempotency", "concurrency"],
+      "provenance": {"dataset": "default", "note": "seed: billing idempotency fix pattern"}
+    },
+    {
+      "id": "seed-002",
+      "task_id": "billing-003",
+      "run_id": "seed",
+      "source_type": "turn",
+      "classification": "success",
+      "content": "reject negative amount in charge(): raise an error and leave no side effect when amount < 0. no PaymentRecord should be inserted for a negative amount.",
+      "tags": ["payment", "validation"],
+      "provenance": {"dataset": "default", "note": "seed: billing negative-amount validation pattern"}
+    },
+    {
+      "id": "seed-003",
+      "task_id": "billing-005",
+      "run_id": "seed",
+      "source_type": "turn",
+      "classification": "success",
+      "content": "make charges_for(order_id) query by order_id instead of scanning all charges; keep behavior identical (same records, same order) and the existing tests passing.",
+      "tags": ["refactor"],
+      "provenance": {"dataset": "default", "note": "seed: billing indexed-query refactor pattern"}
+    }
+  ],
+  "preference_pairs": []
+}

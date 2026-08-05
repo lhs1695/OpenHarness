@@ -24,7 +24,14 @@ class EvalStrategy(Protocol):
     @property
     def name(self) -> str: ...
 
-    async def run(self, case: EvalCase, *, repo_path: Path, strategy_name: str) -> EvalResult: ...
+    async def run(
+        self,
+        case: EvalCase,
+        *,
+        repo_path: Path,
+        strategy_name: str,
+        context: str = "",
+    ) -> EvalResult: ...
 
 
 def _failure_class(passed: bool, hard_failed: list[str]) -> str:
@@ -69,7 +76,14 @@ class PipelineStrategy:
     def name(self) -> str:
         return self._name
 
-    async def run(self, case: EvalCase, *, repo_path: Path, strategy_name: str) -> EvalResult:
+    async def run(
+        self,
+        case: EvalCase,
+        *,
+        repo_path: Path,
+        strategy_name: str,
+        context: str = "",
+    ) -> EvalResult:
         started = time.monotonic()
         backend = WorktreeExecutionBackend(repo_path)
         try:

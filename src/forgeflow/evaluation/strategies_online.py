@@ -202,7 +202,7 @@ def case_to_task(case: EvalCase) -> DevelopmentTask:
     )
 
 
-def build_fix_prompt(case: EvalCase, *, plan_text: str = "") -> str:
+def build_fix_prompt(case: EvalCase, *, plan_text: str = "", context: str = "") -> str:
     """Build the agent prompt that repairs a case inside its worktree."""
     rules = "\n".join(f"- {item}" for item in case.acceptance_rules) or "- (none)"
     tags = ", ".join(case.tags) or "(none)"
@@ -237,6 +237,12 @@ def build_fix_prompt(case: EvalCase, *, plan_text: str = "") -> str:
             "",
             "# Implementation plan (produced earlier — use it as a guide)",
             plan_text.strip(),
+        ]
+    if context.strip():
+        lines += [
+            "",
+            "# Historical experience retrieved from past runs (use it to inform your fix)",
+            context.strip(),
         ]
     return "\n".join(lines)
 
@@ -392,7 +398,14 @@ class _BaseOnlineStrategy:
         finally:
             await session.close()
 
-    async def _run_fix_agent(self, case: EvalCase, workspace: Path, *, plan_text: str = "") -> _AgentStats:
+    async def _run_fix_agent(
+        self,
+        case: EvalCase,
+        workspace: Path,
+        *,
+        plan_text: str = "",
+        context: str = "",
+    ) -> _AgentStats:
         session = await self._runtime_factory(
             cwd=str(workspace),
             system_prompt=AGENT_SYSTEM_PROMPT,
@@ -400,7 +413,9 @@ class _BaseOnlineStrategy:
             max_turns=_IMPL_MAX_TURNS,
         )
         try:
-            return await _run_agent_turn(session.engine, build_fix_prompt(case, plan_text=plan_text))
+            return await _run_agent_turn(
+                session.engine, build_fix_prompt(case, plan_text=plan_text, context=context)
+            )
         finally:
             await session.close()
 
@@ -418,12 +433,19 @@ class _BaseOnlineStrategy:
 class RawAgentStrategy(_BaseOnlineStrategy):
     """``raw``: agent repairs the bug directly; repository tests must then pass."""
 
-    async def run(self, case: EvalCase, *, repo_path: Path, strategy_name: str) -> EvalResult:
+    async def run(
+        self,
+        case: EvalCase,
+        *,
+        repo_path: Path,
+        strategy_name: str,
+        context: str = "",
+    ) -> EvalResult:
         started = time.monotonic()
         backend = WorktreeExecutionBackend(repo_path)
         try:
             workspace = Path(await backend.prepare(self._task_id(case), case.repository))
-            stats = await self._run_fix_agent(case, workspace)
+            stats = await self._run_fix_agent(case, workspace, context=context)
             test_command = _resolved_test_command(case.test_command)
             test_result = await backend.execute(shlex.split(test_command), _TEST_TIMEOUT_SECONDS)
             tests_passed = test_result.returncode == 0 and not test_result.timed_out
@@ -454,14 +476,21 @@ class RawAgentStrategy(_BaseOnlineStrategy):
 class PlanGatesStrategy(_BaseOnlineStrategy):
     """``plan_gates``: adapter plan → agent repair → required commands + gates."""
 
-    async def run(self, case: EvalCase, *, repo_path: Path, strategy_name: str) -> EvalResult:
+    async def run(
+        self,
+        case: EvalCase,
+        *,
+        repo_path: Path,
+        strategy_name: str,
+        context: str = "",
+    ) -> EvalResult:
         started = time.monotonic()
         backend = WorktreeExecutionBackend(repo_path)
         try:
             workspace = Path(await backend.prepare(self._task_id(case), case.repository))
             task = case_to_task(case)
             plan_text, plan_tokens = await self._run_plan(task, workspace)
-            stats = await self._run_fix_agent(case, workspace, plan_text=plan_text)
+            stats = await self._run_fix_agent(case, workspace, plan_text=plan_text, context=context)
             runner = QualityGateRunner(backend, _policy_for_case(self._policy, case))
             report = await runner.evaluate(
                 task_id=case.case_id,
@@ -541,7 +570,14 @@ class PlanGatesStrategy(_BaseOnlineStrategy):
 class PlanGatesReviewerStrategy(PlanGatesStrategy):
     """``plan_gates_reviewer``: plan_gates plus an independent read-only reviewer."""
 
-    async def run(self, case: EvalCase, *, repo_path: Path, strategy_name: str) -> EvalResult:
+    async def run(
+        self,
+        case: EvalCase,
+        *,
+        repo_path: Path,
+        strategy_name: str,
+        context: str = "",
+    ) -> EvalResult:
         started = time.monotonic()
         backend = WorktreeExecutionBackend(repo_path)
         try:
@@ -556,7 +592,8 @@ class PlanGatesReviewerStrategy(PlanGatesStrategy):
             )
             try:
                 stats = await _run_agent_turn(
-                    session.engine, build_fix_prompt(case, plan_text=plan_text)
+                    session.engine,
+                    build_fix_prompt(case, plan_text=plan_text, context=context),
                 )
                 runner = QualityGateRunner(backend, _policy_for_case(self._policy, case))
                 report = await runner.evaluate(

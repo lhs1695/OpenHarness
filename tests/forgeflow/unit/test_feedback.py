@@ -1,12 +1,43 @@
 """Feedback pipeline unit tests — segmentation, classification, samples, pairs."""
 
 from forgeflow.evaluation.feedback import (
+    ExperienceSample,
+    FeedbackDataset,
     TraceSampleBuilder,
     build_preference_pairs,
     classify_segment,
+    dataset_from_json,
+    dataset_to_json,
     segment_trace,
 )
 from forgeflow.trace.events import SpanEvent
+
+
+def test_dataset_json_round_trip() -> None:
+    dataset = FeedbackDataset(
+        id="seed",
+        version="2026-08-05",
+        samples=(
+            ExperienceSample(
+                id="s1",
+                task_id="billing-001",
+                run_id="r1",
+                source_type="turn",
+                classification="success",
+                content="fix duplicate charge",
+                tags=("payment", "idempotency"),
+                provenance={"case_id": "billing-001"},
+            ),
+        ),
+    )
+    loaded = dataset_from_json(dataset_to_json(dataset))
+    assert loaded.id == "seed"
+    assert loaded.version == "2026-08-05"
+    assert len(loaded.samples) == 1
+    sample = loaded.samples[0]
+    assert sample.content == "fix duplicate charge"
+    assert sample.tags == ("payment", "idempotency")
+    assert sample.provenance == {"case_id": "billing-001"}
 
 PROVENANCE = {
     "dataset_version": "2026-08-05",

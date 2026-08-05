@@ -220,6 +220,12 @@ def test_agent_turn_times_out_instead_of_hanging() -> None:
         asyncio.run(_run_agent_turn(_HangingEngine(), "go", timeout_seconds=1))
 
 
+def test_fix_prompt_includes_retrieval_context() -> None:
+    prompt = build_fix_prompt(_billing_case(), context="# 历史经验参考\nfix charge() idempotency")
+    assert "# Historical experience retrieved from past runs" in prompt
+    assert "fix charge() idempotency" in prompt
+
+
 def test_fix_prompt_verify_type_forbids_changes() -> None:
     case = EvalCase(
         case_id="cart-001",

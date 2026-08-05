@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
+from typing import Any
 
 from forgeflow.trace.events import SpanEvent, new_event_id, now_iso
 from forgeflow.trace.redaction import redact
@@ -38,6 +39,42 @@ class FeedbackDataset:
     version: str
     samples: tuple[ExperienceSample, ...] = ()
     preference_pairs: tuple[PreferencePair, ...] = ()
+
+
+def _sample_from_dict(data: dict[str, Any]) -> ExperienceSample:
+    return ExperienceSample(
+        id=str(data["id"]),
+        task_id=str(data["task_id"]),
+        run_id=str(data["run_id"]),
+        source_type=str(data["source_type"]),
+        classification=str(data["classification"]),
+        content=str(data["content"]),
+        tags=tuple(str(item) for item in data.get("tags", [])),
+        provenance={str(k): str(v) for k, v in dict(data.get("provenance", {})).items()},
+    )
+
+
+def dataset_to_json(dataset: FeedbackDataset) -> str:
+    """Serialize a FeedbackDataset to JSON (for archiving/seeding)."""
+    return json.dumps(asdict(dataset), ensure_ascii=False, indent=2)
+
+
+def dataset_from_json(text: str) -> FeedbackDataset:
+    """Load a FeedbackDataset from JSON produced by ``dataset_to_json``."""
+    data = json.loads(text)
+    return FeedbackDataset(
+        id=str(data["id"]),
+        version=str(data["version"]),
+        samples=tuple(_sample_from_dict(item) for item in data.get("samples", [])),
+        preference_pairs=tuple(
+            PreferencePair(
+                chosen=_sample_from_dict(item["chosen"]),
+                rejected=_sample_from_dict(item["rejected"]),
+                rationale=str(item.get("rationale", "")),
+            )
+            for item in data.get("preference_pairs", [])
+        ),
+    )
 
 
 def segment_trace(events: list[SpanEvent]) -> list[list[SpanEvent]]:
