@@ -101,13 +101,15 @@ python -m forgeflow.evaluation.runner --dataset default --strategies plan_gates 
 ### 4.3 补写 `docs/RESUME.md`（简历描述）—— ✅ 已完成
 - 用真实评测数字填 `PROJECT_SPEC.md` §20 模板：8 个可复现任务、25%→75%（raw 100%）、工具失败降约 43%。
 
-### 4.4 Docker Compose 验证
-- 启动 Docker Desktop（WSL2）后 `docker compose up --build`，验证 postgres/redis/api/worker 四服务；`GET localhost:8000/api/v1/tasks` 可用。
-- 若 WSL2 不可用：记录为环境限制，不阻塞（M6 验收已用 `config --quiet` 语法校验兜底）。
+### 4.4 Docker Compose 验证 —— ✅ 已完成（2026-08-05）
+- `docker compose up -d` 起 postgres(healthy)/redis/api/worker，`GET localhost:8000/api/v1/tasks` 200，任务全生命周期 COMPLETED；api 镜像 **597MB**。
+- 修复：Dockerfile 加清华 pip 镜像（`ARG PIP_INDEX_URL`）+ `COPY frontend` + **装 git**（worktree 后端必需）；compose 改 alpine 镜像（1ms.run 源拉取超时）、可写挂载 `.docker/repos/billing-service`（git 化 fixture，`.gitignore` 排除）。
+- 遗留：服务策略无 required_commands → 服务路径未真跑仓库测试（可加 `FORGEFLOW_REQUIRED_COMMANDS` 注入）。
 
 ### 4.5 上游同步（只在里程碑间隙做）
 - `git fetch upstream` → 独立 `sync/upstream-<sha>` 分支 → 先跑上游测试再跑 ForgeFlow 回归 → 更新 `docs/UPSTREAM_MAP.md`。
 - 只同步安全/兼容/严重 Bugfix；不同步 UI/聊天渠道等无关内容。
+- **2026-08-05 检查**：`upstream/main` 相对 `develop` **0 个新提交**，无需同步；`upstream-base-0.1.9` 标签已推送 origin（P1-2 ✅）。
 
 ### 4.6 已知问题清单（持续维护）
 - 上游全量 14 个 Windows 失败（fcntl/symlink/原子重命名/控制台/进程管理）——**预存平台问题**，非本项目引入；建议在 Linux CI（`.github/workflows/ci.yml`）复验。

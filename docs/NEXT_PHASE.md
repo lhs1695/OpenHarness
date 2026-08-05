@@ -14,14 +14,16 @@
 
 ## 2. 工作项（按优先级）
 
-### P0-1 Docker Compose 端到端验证（NEXT_STEPS §4.4 落地）
-- **目标**：`docker compose up --build` 起 postgres/redis/api/worker 四服务，验证任务 API 可用。
-- **验收**：四服务 healthy/started；`GET localhost:8000/api/v1/tasks` 返回 200（路由 `api/app.py:43-45`）；POST 建任务 → start → SSE 事件可见。
-- **前置风险**：
-  1. 本机需先启动 Docker Desktop/WSL2（当前未运行）。
-  2. Dockerfile `pip install -e ".[service]"` 未加 `--no-build-isolation`——代理/镜像下 hatchling build isolation 可能失败（项目已知坑，NEXT_STEPS §3）。
-  3. wheel `force-include`（`pyproject.toml`）引用 `frontend/terminal/{package.json,tsconfig.json,src}`——文件在仓库**存在**，但 Docker build context 只 COPY `pyproject.toml/README.md/src/`，未含 `frontend/`——hatch 打包时**报错还是静默跳过需实测**；若失败，把 `frontend` 加入 COPY。
-- **涉及**：`Dockerfile`、`docker-compose.yml`、（可能）`pyproject.toml`。
+### P0-1 Docker Compose 端到端验证（NEXT_STEPS §4.4 落地）—— ✅ 已完成（2026-08-05）
+- **结果**：`docker compose up -d` 起 postgres(healthy)/redis/api/worker 四服务；`GET localhost:8000/api/v1/tasks` 返回 200；POST 建任务 → start → 状态机 9 次流转 → **COMPLETED**。api 镜像实际 **597MB**（未压缩）。
+- **修的问题（Dockerfile）**：
+  1. 容器内 pip 默认 PyPI 在墙内挂起 → 加 `ARG PIP_INDEX_URL`（默认清华镜像）。
+  2. wheel `force-include` 引用 `frontend/terminal/*` 不在 build context → `COPY frontend ./frontend`。
+  3. **容器没有 git** → `LocalTaskExecutor` 建 worktree 报 `FileNotFoundError: 'git'` → Dockerfile 装 `git`。
+- **修的问题（compose）**：
+  1. `postgres:16`/`redis:7` 从 1ms.run 镜像源拉取 TLS 超时 → 改用本机已有的 alpine 变体。
+  2. fixture 目录不是 git 仓库、且 `:ro` 只读挂载挡了 `git worktree add`（要写源 `.git` refs）→ 建 `.docker/repos/billing-service`（git 化副本，`.gitignore` 排除）并**可写**挂载。
+- **遗留缺口（如实记录）**：服务策略（`factory.py` 的 `RepositoryPolicy`）**无 required_commands**——服务路径的 `LocalTaskExecutor` 实际不跑仓库测试（只有评测路径经 `_policy_for_case` 注入测试命令）；本次任务 COMPLETED 但未真正跑 pytest。这是服务路径质量门禁的配置缺口，后续可加 `FORGEFLOW_REQUIRED_COMMANDS` 之类注入。
 
 ### P0-2 经验检索 before/after 对比实验（M9 未接线的对比）—— ✅ 已完成（2026-08-05）
 - **结果**：plan_gates 带检索 **87.5%（7/8）** vs 不带检索 **75%（6/8）**（`evals/reports/2026-08-05-online-default-retrieval.md` vs `...online-default.md`）。注入种子经验后 billing-003 被修复；billing-005 仍未修复。单次运行含模型随机性，如实记录。
@@ -52,9 +54,9 @@
 
 ## 3. 依赖与排序建议
 
-- ✅ 已完成：P0-2（检索对比）、P1-1（服务层模型驱动 executor）。
-- 进行中：P0-1 依赖本机 Docker Desktop 可用。
-- 剩余顺序建议：**P0-1（Docker）→ P1-2（推标签）→ P2-1/P2-2/P2-3 穿插**。
+- ✅ 已完成：P0-2（检索对比）、P1-1（服务层模型驱动 executor）、P0-1（Docker Compose 端到端验证，含 Dockerfile/compose 修复）。
+- 剩余：P1-2（推标签）、P2-1（上游同步，当前 upstream 无新提交）、P2-2（CI 扩展）、P2-3（质量基线）。
+- 建议顺序：**P1-2 → P2-2 → P2-3（持续）**。
 
 ## 4. 完成定义
 
