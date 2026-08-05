@@ -3,17 +3,18 @@
 > 每次会话结束/里程碑结束更新本文件。新会话开始先读 `PROJECT_SPEC.md`、`docs/ARCHITECTURE.md`、`docs/PLANS.md`、`docs/UPSTREAM_MAP.md` 与本文件。
 
 ## 上次更新
-- 2026-08-05（M10 实现完成，待独立审查）
+- 2026-08-05（M0–M10 全部完成并 merge 回 develop）
 
 ## 当前状态
 
-- **里程碑**：M0–M9 ✅（已 merge）；M10 实现完成（168 单测 + 文档/CI、ruff/mypy clean），待独立审查后 merge 回 develop。
+- **里程碑**：**M0–M10 全部 ✅（已 merge 回 develop 并推送 origin）**。ForgeFlow 主体开发完成。
 - **分支/worktree**：
   - `main` @ `af94671`（可发布，含 setup 文档）
-  - `develop` @ `45fe3b1`（含 M0–M9，已推送 origin）
-  - `milestone/m10-packaging` @ 当前（M10 包装实现，**尚未 merge 回 develop**）
-  - 上游基础标签 `upstream-base-0.1.9` @ `9b2efd7`（未推送）
-- **M10 产物**：`README.md`（ForgeFlow 版）、`docs/{ARCHITECTURE,STATE_MACHINE,API,EVALUATION,SECURITY,UPSTREAM_CONTRIBUTIONS,DEMO,INTERVIEW}.md`（架构/状态机含 Mermaid 内嵌）、`evals/reports/2026-08-05-default-plan_gates.md`、`.github/workflows/ci.yml`（替换为 ForgeFlow CI）、eval CLI `--output`。
+  - `develop` @ `70bb7f4`（含 M0–M10 全部，已推送 origin）
+  - 当前会话 worktree `vigilant-elgamal-93ae55` @ `9b2efd7`（旧基线，仅本会话使用；后续新会话请从 `develop` 派生新 worktree）
+  - 上游基础标签 `upstream-base-0.1.9` @ `9b2efd7`（未推送，可选推送）
+- **M0–M10 产物总览**：`src/forgeflow/`（domain/orchestration/integrations/execution/quality/trace/evaluation/api/application/infrastructure，~54 个源文件，mypy clean）、168 个 ForgeFlow 测试、`README.md` + `docs/*`（架构/状态机含 Mermaid、API、SECURITY、UPSTREAM_CONTRIBUTIONS、DEMO、INTERVIEW、EVALUATION 实测报告）、`evals/reports/`、`.github/workflows/ci.yml`、`docker-compose.yml`。
+- **关键事实（可核验）**：`src/openharness/` **0 个源文件被修改**；上游文件改动仅 `pyproject.toml`（wheel/mcp<2.0.0/tzdata/marker/service extra）与 `README.md`（替换为 ForgeFlow 版）。
 - **错误层级位置**：`forgeflow/errors.py`（原 `integrations/openharness/exceptions.py` 已删除）。
 - **服务依赖**：pyproject 新增 `service` extra（fastapi/sqlalchemy/celery/redis/psycopg2）；venv 已装。
 
@@ -31,16 +32,16 @@
   - 测试文件 basename 不能与上游 `tests/` 冲突（曾与 `test_sandbox/test_adapter.py` 冲突，已改名 `test_plan_adapter.py`）。
   - 换 worktree 后需重装 editable：`python -m pip install -e ".[dev]" --no-build-isolation`（venv 需已装 `hatchling`、`editables`；build isolation 在代理/镜像下偶发失败）。
 
-## 下一步（M10 收尾 + 后续）
+## 下一步（暂缓项，项目主体已完成）
 
-1. M10 独立审查（§17.4）→ merge `milestone/m10-packaging` 回 `develop` → 清理 m10 worktree → push develop。
-2. **可选后续**：跑一次 Agent 驱动在线评测（raw / plan_gates / plan_gates_reviewer 对比，需 DeepSeek 凭据），把真实数字填入 `docs/RETROSPECTIVE.md`（项目复盘）与 `docs/RESUME.md`（简历描述，暂缓项）。
-3. 推送 `upstream-base-0.1.9` 标签到 origin（可选）。
+1. **Agent 驱动在线评测**（最高优先，需 DeepSeek 凭据）：跑 `raw` / `plan_gates` / `plan_gates_reviewer` 三策略对比同一数据集，得到真实完成率/测试通过率提升（预期：billing 基线失败案例在 Agent 修复后翻转为通过）。方法：参考 `docs/EVALUATION.md` §3（before/after 对比）+ 复用 `evaluation/strategies.py` 的 `EvalStrategy` 接缝，实现在线策略（adapter 规划 + 编辑 + 门禁 + Reviewer）。这是简历模板（`PROJECT_SPEC.md` §20 的 [X]/[A]/[B]/[C]）真实数字的来源。
+2. **补写暂缓文档**：拿到真实评测数字后写 `docs/RETROSPECTIVE.md`（一页项目复盘）与 `docs/RESUME.md`（简历描述模板填数字）。用户明确：这两项等项目完善再写。
+3. **可选**：推送 `upstream-base-0.1.9` 标签到 origin；`docker compose up` 验证（需启动 Docker Desktop/WSL2）。
 
 ## 待办/风险
 
 - 未推送任何内容到 `upstream`（HKUDS/OpenHarness）。所有推送仅到 `origin`（自己的 fork）。
-- `milestone/m10-packaging` 分支与 `upstream-base-0.1.9` 标签尚未推送。
+- `upstream-base-0.1.9` 标签尚未推送。
 - **Docker daemon/WSL2 本机未运行**：`docker compose up` 需先启动 Docker Desktop；compose 文件已通过 `config --quiet` 语法校验。
 - `test_autopilot`、`test_cron_scheduler` 等失败待 Linux CI 复验（见 BASELINE §4）。
 - 在线垂直链路依赖 DeepSeek 端点与凭据；模型驱动的策略区分（raw / plan_gates / plan_gates_reviewer）与端到端演示在 M10 验证；CLI 评测输出中文在 Windows 控制台显示乱码（内容为 UTF-8，正常）。
