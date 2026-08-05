@@ -16,15 +16,20 @@ def render_report(result: ExperimentResult) -> str:
         f"- 创建时间：{result.created_at}",
         "",
         "## 汇总指标（按策略）",
-        "| 策略 | 完成率 | 通过/总数 | 基线失败 | 策略失败 | 平均Token | 平均成本 | 平均耗时 |",
-        "|---|---|---|---|---|---|---|---|",
+        "| 策略 | 完成率 | 通过/总数 | 基线失败 | 策略失败 | Agent 未修复 | 平均Token | 平均工具失败 | 平均成本 | 平均耗时 |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for strategy, metrics in result.metrics_by_strategy.items():
+        tool_failures_avg = round(
+            metrics["tool_failures_total"] / metrics["case_count"], 2
+        ) if metrics["case_count"] else 0.0
         lines.append(
             f"| {strategy} | {metrics['completion_rate']:.2%} | "
             f"{metrics['pass_count']}/{metrics['case_count']} | "
             f"{metrics['baseline_count']} | {metrics['policy_count']} | "
-            f"{metrics['avg_tokens']} | ${metrics['avg_cost_usd']:.6f} | "
+            f"{metrics.get('agent_failed_count', 0)} | "
+            f"{metrics['avg_tokens']} | {tool_failures_avg} | "
+            f"${metrics['avg_cost_usd']:.6f} | "
             f"{metrics['avg_duration_ms']}ms |"
         )
     lines.append("")
@@ -45,6 +50,7 @@ def render_report(result: ExperimentResult) -> str:
 _FAILURE_LABELS = {
     "baseline": "基线失败（测试未通过，未施加修复）",
     "policy": "策略门禁失败",
+    "agent_failed": "Agent 未修复/被拒（模型跑完后门禁或评审未通过）",
     "error": "意外错误",
     "pass": "通过",
 }

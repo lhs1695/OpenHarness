@@ -33,6 +33,9 @@ def compute_metrics(results: list[EvalResult]) -> dict[str, Any]:
         "error_count": errors,
         "baseline_count": sum(1 for result in results if result.failure_class == "baseline"),
         "policy_count": sum(1 for result in results if result.failure_class == "policy"),
+        "agent_failed_count": sum(
+            1 for result in results if result.failure_class == "agent_failed"
+        ),
         "completion_rate": ratio(passed),
         "test_pass_rate": ratio(tests_passed),
         "forbidden_path_touches": forbidden,

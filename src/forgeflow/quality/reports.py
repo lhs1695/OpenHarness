@@ -107,7 +107,10 @@ class QualityGateRunner:
         for relative in changed_files:
             try:
                 resolved = resolve_workspace_path(relative, workspace)
-                contents[relative] = resolved.read_text()
+                # Agent-written files may be UTF-8; the platform default (e.g. GBK
+                # on Chinese Windows) would raise UnicodeDecodeError. Read as UTF-8
+                # with replacement so the secret scan never aborts on encoding.
+                contents[relative] = resolved.read_text(encoding="utf-8", errors="replace")
             except (OSError, PathEscapeError):
                 contents[relative] = ""
         return contents

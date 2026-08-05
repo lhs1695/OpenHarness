@@ -42,9 +42,11 @@ def test_metrics_counts_failure_classes() -> None:
         EvalResult(case_id="b", strategy="s", status="failed", failure_class="baseline"),
         EvalResult(case_id="c", strategy="s", status="failed", failure_class="baseline"),
         EvalResult(case_id="d", strategy="s", status="failed", failure_class="policy"),
-        EvalResult(case_id="e", strategy="s", status="error", failure_class="error"),
+        EvalResult(case_id="e", strategy="s", status="failed", failure_class="agent_failed"),
+        EvalResult(case_id="f", strategy="s", status="error", failure_class="error"),
     ]
     metrics = compute_metrics(results)
     assert metrics["baseline_count"] == 2
     assert metrics["policy_count"] == 1
+    assert metrics["agent_failed_count"] == 1
     assert metrics["error_count"] == 1

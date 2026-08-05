@@ -1,7 +1,9 @@
 """Quality gate unit tests — pure, no backend needed."""
 
+import asyncio
+
 from forgeflow.domain.policy import RepositoryPolicy
-from forgeflow.execution.base import ExecutionResult
+from forgeflow.execution.base import Artifact, ExecutionResult
 from forgeflow.quality.gates import (
     GateStatus,
     GateType,
@@ -13,6 +15,7 @@ from forgeflow.quality.gates import (
 from forgeflow.quality.gates import (
     test_masking_gate as masking_gate,
 )
+from forgeflow.quality.reports import QualityGateRunner
 
 POLICY = RepositoryPolicy(
     repository="billing-service",
@@ -29,6 +32,42 @@ def _result(returncode: int) -> ExecutionResult:
         stderr="",
         duration_ms=1,
     )
+
+
+class _FakeBackend:
+    """Minimal backend: returns a fixed changed-file list and command result."""
+
+    def __init__(self, changed_files: list[str], result: ExecutionResult) -> None:
+        self._changed_files = changed_files
+        self._result = result
+
+    async def prepare(self, task_id: str, repository: str) -> str:
+        return "."
+
+    async def collect_artifacts(self) -> list[Artifact]:
+        return [Artifact(artifact_type="changed_file", path=name) for name in self._changed_files]
+
+    async def execute(self, command: list[str], timeout_seconds: int) -> ExecutionResult:
+        return self._result
+
+    async def cancel(self) -> None: ...
+
+    async def cleanup(self) -> None: ...
+
+
+def test_gate_runner_reads_utf8_chinese_changes(tmp_path) -> None:
+    """An agent-written UTF-8 file (e.g. a Chinese comment) must not crash the
+    gate runner on Chinese Windows, where the platform default is GBK."""
+    changed = tmp_path / "payment.py"
+    changed.write_bytes("def charge():\n    # 幂等键\n    pass\n".encode())
+    backend = _FakeBackend(["payment.py"], _result(0))
+    runner = QualityGateRunner(
+        backend, RepositoryPolicy(repository="billing-service")
+    )
+    report = asyncio.run(
+        runner.evaluate(task_id="t1", task_type="bugfix", workspace=tmp_path)
+    )
+    assert report.passed  # secret scan read the file without UnicodeDecodeError
 
 
 def test_forbidden_paths_gate_fails_on_touch() -> None:

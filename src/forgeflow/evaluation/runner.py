@@ -54,12 +54,21 @@ class EvalRunner:
         return result
 
 
+def _build_strategies(online: bool) -> dict[str, EvalStrategy]:
+    if online:
+        from forgeflow.evaluation.strategies_online import online_strategies
+
+        return online_strategies()
+    return default_strategies()
+
+
 async def _run_experiment(
     name: str,
     dataset_id: str,
     strategies: list[str],
     repo_root: Path,
     output_path: Path | None,
+    online: bool,
 ) -> None:
     dataset = get_dataset(dataset_id)
     config = new_experiment_config(
@@ -71,7 +80,7 @@ async def _run_experiment(
     repositories = sorted({case.repository for case in dataset.cases})
     with tempfile.TemporaryDirectory(prefix="forgeflow-eval-") as tmp:
         work_root = materialize_dataset_repos(repo_root, Path(tmp) / "repos", repositories)
-        result = await EvalRunner(default_strategies()).run(
+        result = await EvalRunner(_build_strategies(online)).run(
             dataset=dataset, config=config, repo_root=work_root
         )
     report = render_report(result)
@@ -100,10 +109,19 @@ def main() -> None:
         default=None,
         help="write the markdown report to this file (UTF-8) instead of stdout",
     )
+    parser.add_argument(
+        "--online",
+        action="store_true",
+        help="use the model-driven online strategies (requires API credentials)",
+    )
     args = parser.parse_args()
     strategies = [item.strip() for item in args.strategies.split(",") if item.strip()]
     output = Path(args.output) if args.output else None
-    asyncio.run(_run_experiment(args.name, args.dataset, strategies, Path(args.repo_root), output))
+    asyncio.run(
+        _run_experiment(
+            args.name, args.dataset, strategies, Path(args.repo_root), output, args.online
+        )
+    )
 
 
 if __name__ == "__main__":
