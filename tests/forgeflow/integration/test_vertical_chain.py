@@ -45,7 +45,7 @@ async def test_vertical_chain_plans_fixture_repo() -> None:
             "you never modify files."
         ),
         permission_mode="full_auto",
-        max_turns=6,
+        max_turns=20,  # DeepSeek's planner explores beyond 6 turns on this fixture
         model=os.environ.get("OPENHARNESS_MODEL"),
     )
     task = DevelopmentTask(

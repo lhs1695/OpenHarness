@@ -91,6 +91,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,service]"
 
+      # test_vertical_chain is intentionally excluded: DeepSeek's planner burns
+      # ~13 min on it, and the strategy live tests already cover the plan step.
       - name: Online smoke (real DeepSeek calls; skip if no secret configured)
         if: ${{ secrets.DEEPSEEK_API_KEY != '' }}
         run: |
