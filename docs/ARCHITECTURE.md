@@ -3,6 +3,99 @@
 > 基于 M0 审计（`docs/audit/*`、`docs/UPSTREAM_MAP.md`）修订的**目标架构**。落地前不批量建脚手架；每个模块在对应里程碑落地。
 > 集成策略见 `docs/adr/0001-integration-strategy.md`。
 
+## 架构图（Mermaid）
+
+```mermaid
+flowchart TD
+    subgraph IN[入口]
+        API[FastAPI /api/v1]
+        CLI[CLI / python -m forgeflow.evaluation.runner]
+        SSE[SSE 事件流]
+    end
+    subgraph CP[Task Control Plane · M2/M5]
+        TASK[DevelopmentTask]
+        POLICY[RepositoryPolicy]
+        RISK[Risk Scoring]
+        APPROVAL[Approval]
+        SM[StateMachine]
+    end
+    subgraph APP[ForgeFlow Orchestrator · M1-M7]
+        SVC[TaskService]
+        ORCH[TaskOrchestrator]
+        BUS[EventBus]
+    end
+    subgraph INT[OpenHarness Adapter · M1]
+        ADAPTER[EngineLike + run_plan]
+        EVMAP[event_mapper]
+        ERR[exceptions]
+    end
+    subgraph OH[OpenHarness Runtime · 复用]
+        ENGINE[QueryEngine / run_query]
+        TOOLS[ToolRegistry]
+        WT[WorktreeManager]
+    end
+    subgraph EX[执行隔离 · M3]
+        BACKEND[WorktreeExecutionBackend<br/>git worktree · 命令 · 超时/取消]
+    end
+    subgraph QG[质量门禁 · M4/M5]
+        GATES[Quality Gates]
+        REVIEWER[Reviewer 只读]
+        DELIVERY[Patch / Draft PR]
+    end
+    subgraph OB[观测与回流 · M7-M9]
+        TRACE[Trace Collector / Repository]
+        EVAL[Evaluation · Feedback Registry]
+    end
+    API --> CP
+    CLI --> CP
+    SSE --> BUS
+    CP --> SVC
+    SVC --> ORCH
+    ORCH --> BUS
+    ORCH --> ADAPTER
+    ORCH --> BACKEND
+    ADAPTER --> ENGINE
+    ENGINE --> TOOLS
+    BACKEND -.适配.-> WT
+    BACKEND --> GATES
+    GATES --> REVIEWER
+    REVIEWER --> DELIVERY
+    ORCH --> TRACE
+    TRACE --> EVAL
+    EVAL -.经验回流.-> ORCH
+```
+
+## 任务数据流（Mermaid）
+
+```mermaid
+sequenceDiagram
+    participant C as 调用方
+    participant API as FastAPI
+    participant SVC as TaskService
+    participant ORCH as TaskOrchestrator
+    participant EXEC as WorktreeExecutionBackend
+    participant GATE as QualityGateRunner
+    participant TRACE as TraceCollector
+
+    C->>API: POST /api/v1/tasks
+    API->>SVC: create_task()
+    SVC->>SVC: 校验 + 初始风险 + 持久化 + task_created 事件
+    API-->>C: TaskView (DRAFT)
+
+    C->>API: POST /tasks/{id}/start
+    API->>SVC: start_task(command_id)
+    SVC->>ORCH: orchestrator.start()（幂等去重）
+    ORCH->>ORCH: 状态机 DRAFT→READY→…→EXECUTING（逐步持久化 + 发布）
+    ORCH->>EXEC: executor.execute()
+    EXEC->>EXEC: 创建隔离 git worktree
+    EXEC->>GATE: 跑必需命令（结构化参数）
+    GATE-->>EXEC: QualityReport（硬/软门禁）
+    EXEC-->>ORCH: ExecutionOutcome
+    ORCH->>ORCH: 状态机 →COMPLETED / FAILED / BUDGET_EXCEEDED
+    ORCH->>TRACE: TraceRepository.save_events（SpanEvent 落库）
+    API-->>C: TaskView（最终状态）
+```
+
 ## 1. 分层
 
 ```text

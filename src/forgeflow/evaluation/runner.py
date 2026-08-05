@@ -54,7 +54,13 @@ class EvalRunner:
         return result
 
 
-async def _run_experiment(name: str, dataset_id: str, strategies: list[str], repo_root: Path) -> None:
+async def _run_experiment(
+    name: str,
+    dataset_id: str,
+    strategies: list[str],
+    repo_root: Path,
+    output_path: Path | None,
+) -> None:
     dataset = get_dataset(dataset_id)
     config = new_experiment_config(
         name=name,
@@ -68,7 +74,11 @@ async def _run_experiment(name: str, dataset_id: str, strategies: list[str], rep
         result = await EvalRunner(default_strategies()).run(
             dataset=dataset, config=config, repo_root=work_root
         )
-    print(render_report(result))
+    report = render_report(result)
+    if output_path is not None:
+        output_path.write_text(report, encoding="utf-8")
+    else:
+        print(report)
 
 
 def main() -> None:
@@ -85,9 +95,15 @@ def main() -> None:
         default="tests/forgeflow/fixtures/repositories",
         help="path to fixture repositories",
     )
+    parser.add_argument(
+        "--output",
+        default=None,
+        help="write the markdown report to this file (UTF-8) instead of stdout",
+    )
     args = parser.parse_args()
     strategies = [item.strip() for item in args.strategies.split(",") if item.strip()]
-    asyncio.run(_run_experiment(args.name, args.dataset, strategies, Path(args.repo_root)))
+    output = Path(args.output) if args.output else None
+    asyncio.run(_run_experiment(args.name, args.dataset, strategies, Path(args.repo_root), output))
 
 
 if __name__ == "__main__":
