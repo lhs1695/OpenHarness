@@ -82,7 +82,22 @@ Task Trace (SpanEvent)
 | plan_gates 带检索（after，`evals/reports/2026-08-05-online-default-retrieval.md`） | **87.50%** | 7/8 | billing-005 |
 
 - **结论**：注入种子经验后，`billing-003`（负金额校验，命中 seed-002）被修复，完成率 75% → 87.5%；`billing-005`（重构，命中 seed-003）仍未修复。单次运行，含模型随机性；如实记录"检索有帮助但非万能"。
-- **限制**：当前检索按拉丁词重叠打分，中文描述靠 case tags 命中；无真实 trace 历史（M9 反馈管道未接入在线评测轨迹），种子数据集为手工构建。让检索消费真实历史需要在线评测先产出并回流样本（见 `docs/NEXT_PHASE.md`）。
+- **限制（A1 已部分解决）**：当前检索按拉丁词重叠打分，中文描述靠 case tags 命中（改进见 A4 语义检索）。**真实 trace 历史现已回流**（A1）：在线评测经 `--feedback-output` 产出 `evals/data/real-feedback.json`（400 样本，369 success / 31 failure，provenance 含 case_id/repository/strategy），可直接被 `--feedback-dataset` 回读做 before/after。详见 §3.6。
+
+### 3.6 真实评测轨迹回流（PHASE3 A1，2026-08-05）
+
+> 机制：在线策略为每个 case 建 `TraceCollector`，`_TraceForwardingEngine` 把 plan/fix/review 的 StreamEvent 转发入 collector → `TraceSampleBuilder.build` → `FeedbackRegistry`；runner `--feedback-output <json>` 合并写盘。存档 `evals/data/real-feedback.json` + `evals/reports/2026-08-05-online-a1-feedback.md`。
+
+- **第一批真实反馈样本**：400 个（369 success / 31 failure；111 turn / 289 event），8 个 case 全覆盖；每个样本 provenance 含 `dataset_version` / `case_id` / `repository` / `strategy`，内容为脱敏后的 SpanEvent JSON——**可溯源、可回放**。
+- **同批真实在线结果（plan_gates）**：完成率 **75%（6/8）**；`billing-003` 门禁未过（required_commands），`billing-004` 触发 **900s 墙钟超时**（真实随机性：上一轮该 case 被修复，本轮超时——如实记录）。平均耗时受超时 case 拉高。
+- **before/after 对比（真实反馈检索）**（`evals/reports/2026-08-05-online-a1-before-after.md`）：
+
+| 方案 | 完成率 | 通过/总数 | 平均Token | 平均成本 | 平均耗时 |
+|---|---|---|---|---|---|
+| plan_gates 不带检索（before） | **75.00%** | 6/8 | 23,727 | $0.135 | 186s（含 900s 超时 case） |
+| plan_gates 带真实反馈检索（after） | **100.00%** | 8/8 | 33,258 | $0.206 | 102s |
+
+- **如实标注**：8 个 case 检索均命中真实成功样本（hits=3/3）；after 完成率 75%→100%。但单次运行含**模型随机性**（before 的 `billing-004` 超时是随机抖动，非必然），不能据此断言检索必然提升——结论是"真实反馈已可回流并被检索消费，改善方向可信但需多次复跑才可量化"。成本/Token 更高是因为 after 无超时 case、agent 迭代更充分。
 
 ## 4. 复现路径（spec §12.4）
 

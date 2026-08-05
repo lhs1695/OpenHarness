@@ -6,16 +6,22 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
+from forgeflow.api.auth import ApiKeyAuthenticator, _open_subject
 from forgeflow.api.schemas import ApprovalResolveRequest, CreateTaskRequest, TaskView
 from forgeflow.application.task_service import CreateTaskInput, TaskNotFoundError, TaskService
 from forgeflow.infrastructure.store import StoredTask
 
 
-def build_app(service: TaskService) -> FastAPI:
+def build_app(
+    service: TaskService, auth: ApiKeyAuthenticator | None = None
+) -> FastAPI:
     app = FastAPI(title="ForgeFlow", version="0.1.0")
+    # When an authenticator is configured, task endpoints require a valid API key
+    # and the authenticated subject becomes the task owner (B4).
+    auth_dep = auth if auth is not None else _open_subject
 
     def _get(task_id: str) -> StoredTask:
         try:
@@ -24,7 +30,9 @@ def build_app(service: TaskService) -> FastAPI:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.post("/api/v1/tasks", response_model=TaskView)
-    def create_task(request: CreateTaskRequest) -> TaskView:
+    def create_task(
+        request: CreateTaskRequest, subject: str = Depends(auth_dep)
+    ) -> TaskView:
         task = service.create_task(
             CreateTaskInput(
                 repository=request.repository,
@@ -34,34 +42,37 @@ def build_app(service: TaskService) -> FastAPI:
                 priority=request.priority,
                 acceptance_criteria=list(request.acceptance_criteria),
                 risk_tags=list(request.risk_tags),
-                requested_by=request.requested_by,
+                requested_by=subject or request.requested_by,
                 initial_risk_score=request.initial_risk_score,
             )
         )
         return TaskView.from_stored(task)
 
     @app.get("/api/v1/tasks", response_model=list[TaskView])
-    def list_tasks() -> list[TaskView]:
-        return [TaskView.from_stored(task) for task in service.list_tasks()]
+    def list_tasks(subject: str = Depends(auth_dep)) -> list[TaskView]:
+        tasks = service.list_tasks(requested_by=subject or None)
+        return [TaskView.from_stored(task) for task in tasks]
 
     @app.get("/api/v1/tasks/{task_id}", response_model=TaskView)
-    def get_task(task_id: str) -> TaskView:
+    def get_task(task_id: str, subject: str = Depends(auth_dep)) -> TaskView:
         return TaskView.from_stored(_get(task_id))
 
     @app.post("/api/v1/tasks/{task_id}/start", response_model=TaskView)
-    async def start_task(task_id: str, command_id: str | None = None) -> TaskView:
+    async def start_task(
+        task_id: str, command_id: str | None = None, subject: str = Depends(auth_dep)
+    ) -> TaskView:
         return TaskView.from_stored(service.start_task(task_id, command_id=command_id))
 
     @app.post("/api/v1/tasks/{task_id}/pause", response_model=TaskView)
-    async def pause_task(task_id: str) -> TaskView:
+    async def pause_task(task_id: str, subject: str = Depends(auth_dep)) -> TaskView:
         return TaskView.from_stored(service.pause_task(task_id))
 
     @app.post("/api/v1/tasks/{task_id}/resume", response_model=TaskView)
-    async def resume_task(task_id: str) -> TaskView:
+    async def resume_task(task_id: str, subject: str = Depends(auth_dep)) -> TaskView:
         return TaskView.from_stored(service.resume_task(task_id))
 
     @app.post("/api/v1/tasks/{task_id}/cancel", response_model=TaskView)
-    async def cancel_task(task_id: str) -> TaskView:
+    async def cancel_task(task_id: str, subject: str = Depends(auth_dep)) -> TaskView:
         return TaskView.from_stored(service.cancel_task(task_id))
 
     @app.get("/api/v1/tasks/{task_id}/approvals")

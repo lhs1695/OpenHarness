@@ -60,7 +60,7 @@
 
 - **认证/登录**：OAuth 订阅流未在 ForgeFlow 层包装；当前在线评测走 API-key（DeepSeek）。
 - **Docker 沙箱**：`settings.sandbox.docker` 未作为评测默认执行后端；compose `up` 需本机 Docker Desktop/WSL2 启动后验证（`config --quiet` 已通过）。
-- **真实 PR 提交**：`DeliveryService.create_draft_pr` 仅允许测试仓库，未做真实 GitHub 远端提交。
+- **真实 PR 提交（B1 部分完成）**：`GitHubPrClient`（gh CLI 封装 + `GH_TOKEN`）与 `DeliveryService` 真实仓库 Draft PR 路径已实现（配 GITHUB_TOKEN 时真实仓库可建 Draft PR，测试仓库保持本地 Draft 语义）；**尚未接线**：orchestrator 审批通过后真正调用 `create_draft_pr`（需交付时提供 diff + head 分支）。
 - **模型后训练**：M9 数据回流只产出可溯源经验样本，**未声称做过模型训练**。
 - **上游 14 个 Windows 预存失败**：fcntl/symlink/原子重命名等，非本项目引入，建议 Linux CI 复验。
 
@@ -68,4 +68,5 @@
 
 1. ✅ 在线评测报告已固化到 `docs/EVALUATION.md` §3.5（before/after 对比 + 三策略）。
 2. ✅ `docs/RESUME.md` 已用真实数字填 `PROJECT_SPEC.md` §20 模板。
-3. 可选：启动 Docker Desktop 验证 `docker compose up --build` 四服务；推送 `upstream-base-0.1.9` 标签；经验检索 before/after 对比实验（在线策略可跑，`retrieval_comparison` 上下文注入未接入）。
+3. ✅ 经验检索 before/after 对比实验已用**真实反馈**完成（Phase 3 A1）：`evals/data/real-feedback.json` 400 样本，不带检索 75% → 带真实反馈检索 100%（单次运行含模型随机性，见 `docs/EVALUATION.md` §3.6）。
+4. 可选：启动 Docker Desktop 验证 `docker compose up --build` 四服务；推送 `upstream-base-0.1.9` 标签。

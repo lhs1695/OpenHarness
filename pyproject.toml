@@ -53,6 +53,9 @@ service = [
     "redis>=5.0",
     "psycopg2-binary>=2.9",
 ]
+retrieval = [
+    "sentence-transformers>=3.0",
+]
 
 [project.scripts]
 openharness = "openharness.cli:app"

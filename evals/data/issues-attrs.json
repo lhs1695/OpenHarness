@@ -1,0 +1,380 @@
+[
+  {
+    "case_id": "attrs-1348",
+    "repository": "python-attrs/attrs",
+    "title": "Error occurs when using converters.optional and converters.pipe together",
+    "description": "In 24.x, defining a field with converter=attrs.converters.optional(attrs.converters.pipe(str, int)) errors at construction, while 23.2.0 worked and converted '1' to 1.",
+    "acceptance_rules": [
+      "A field with converter=optional(pipe(str, int)) and default=None constructs without error",
+      "Constructing the class with a string converts it through the pipe to int"
+    ],
+    "tags": ["Bug", "converter"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/1348",
+      "issue_id": "1348",
+      "labels": "Bug",
+      "author": "MioYvo"
+    }
+  },
+  {
+    "case_id": "attrs-1327",
+    "repository": "python-attrs/attrs",
+    "title": "Upgrade to 24.1.0 seems to break assignment to fields with chained converters",
+    "description": "Fields declared with a list of converters (converter=[foo, bar]) raise AttributeError on assignment after 24.1.0; chained converters must all run.",
+    "acceptance_rules": [
+      "Assigning to a field with converter=[foo, bar] applies every converter in order",
+      "Assignment to such a field does not raise AttributeError"
+    ],
+    "tags": ["Bug", "converter"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/1327",
+      "issue_id": "1327",
+      "labels": "Bug",
+      "author": "leroyvn"
+    }
+  },
+  {
+    "case_id": "attrs-1295",
+    "repository": "python-attrs/attrs",
+    "title": "attr.filters.exclude or include not simultaneously usable with validators.in_ set",
+    "description": "Calling attrs.asdict/as_tuple with an exclude/include filter on frozen nodes whose attributes carry validators.in_ raises TypeError: unhashable type.",
+    "acceptance_rules": [
+      "attrs.asdict with an exclude or include filter works on frozen classes",
+      "Filtering does not raise TypeError when attributes use validators.in_"
+    ],
+    "tags": ["Bug", "asdict", "filter"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/1295",
+      "issue_id": "1295",
+      "labels": "Bug",
+      "author": "miki5799"
+    }
+  },
+  {
+    "case_id": "attrs-1284",
+    "repository": "python-attrs/attrs",
+    "title": "kw_only with default breaks __attrs_pre_init__ call",
+    "description": "Defining a kw_only field with a default raises SyntaxError during @define; the class should be constructible and __attrs_pre_init__ should be called.",
+    "acceptance_rules": [
+      "A kw_only field with a default does not raise SyntaxError at class definition",
+      "The class constructs successfully and __attrs_pre_init__ runs"
+    ],
+    "tags": ["Bug", "kw_only"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/1284",
+      "issue_id": "1284",
+      "labels": "Bug",
+      "author": "zeevro"
+    }
+  },
+  {
+    "case_id": "attrs-1230",
+    "repository": "python-attrs/attrs",
+    "title": "AttributeError propagation is broken in cached_property with slots=True",
+    "description": "On a slots=True attrs class, an AttributeError raised inside a property is swallowed and reported as a missing attribute instead of propagating.",
+    "acceptance_rules": [
+      "An AttributeError raised inside a property propagates unchanged on slots=True classes",
+      "Accessing a cached_property that raises AttributeError surfaces that original error"
+    ],
+    "tags": ["Bug", "slots"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/1230",
+      "issue_id": "1230",
+      "labels": "Bug",
+      "author": "n-splv"
+    }
+  },
+  {
+    "case_id": "attrs-1229",
+    "repository": "python-attrs/attrs",
+    "title": "Test failure with Python 3.13: TestUpdateAbstractMethods.test_remain_abstract[False] does not raise the expected TypeError",
+    "description": "An attrs class inheriting from abc.ABC without implementing abstract methods should remain abstract and raise TypeError on instantiation; the non-slots case regressed.",
+    "acceptance_rules": [
+      "An attrs class that inherits an abstract class but omits abstract methods remains abstract",
+      "Instantiating such a class raises TypeError"
+    ],
+    "tags": ["Bug", "abc"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/1229",
+      "issue_id": "1229",
+      "labels": "Bug",
+      "author": "befeleme"
+    }
+  },
+  {
+    "case_id": "attrs-907",
+    "repository": "python-attrs/attrs",
+    "title": "Compatibility with Python 3.11",
+    "description": "Some attrs tests fail under Python 3.11 (e.g. test_init_subclass_vanilla); super().__init_subclass__ must work for non-attrs subclasses.",
+    "acceptance_rules": [
+      "super().__init_subclass__ works when the subclass is not an attrs class",
+      "attrs classes are compatible with Python 3.11"
+    ],
+    "tags": ["Bug", "python-3.11"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/907",
+      "issue_id": "907",
+      "labels": "Bug",
+      "author": "frenzymadness"
+    }
+  },
+  {
+    "case_id": "attrs-883",
+    "repository": "python-attrs/attrs",
+    "title": "attr._cmp stub uses undefined name",
+    "description": "The attr/_cmp.pyi stub imports the name _CompareWithType which does not exist anywhere else in the repo; the stub must only reference defined names.",
+    "acceptance_rules": [
+      "src/attr/_cmp.pyi references only names that are defined in the repo",
+      "The stub is type-checkable"
+    ],
+    "tags": ["Bug", "Typing"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/883",
+      "issue_id": "883",
+      "labels": "Bug,Typing",
+      "author": "JelleZijlstra"
+    }
+  },
+  {
+    "case_id": "attrs-754",
+    "repository": "python-attrs/attrs",
+    "title": "threading.local global variable in _make.py breaks (cloud)pickling",
+    "description": "A module-level threading.local (e.g. _already_repring) in _make.py prevents attrs-based objects from being pickled by cloudpickle.",
+    "acceptance_rules": [
+      "attrs-based objects can be pickled with cloudpickle",
+      "The module has no unpicklable threading.local in the generated-class path"
+    ],
+    "tags": ["Bug", "pickling"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/754",
+      "issue_id": "754",
+      "labels": "Bug",
+      "author": "pwais"
+    }
+  },
+  {
+    "case_id": "attrs-703",
+    "repository": "python-attrs/attrs",
+    "title": "Frozen Exceptions cannot be thrown from Exception Handler in PyPy",
+    "description": "A frozen, slots, auto_exc attrs exception class cannot be raised from an exception handler using 'raise ... from None' on PyPy, unlike CPython.",
+    "acceptance_rules": [
+      "A frozen auto_exc attrs exception class can be raised from an exception handler with from None",
+      "The exception is raised identically on CPython and PyPy"
+    ],
+    "tags": ["Bug", "frozen"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/703",
+      "issue_id": "703",
+      "labels": "Bug",
+      "author": "N-Coder"
+    }
+  },
+  {
+    "case_id": "attrs-682",
+    "repository": "python-attrs/attrs",
+    "title": "Inherited attributes of subclasses no longer compare equal to the equivalent attributes of base class",
+    "description": "Since 20.1.0, attr.fields(SubClass)[0] != attr.fields(BaseClass)[0] for an inherited attribute, though their names are equal; inherited attributes must compare equal.",
+    "acceptance_rules": [
+      "Inherited attributes compare equal to the base class's equivalent attributes",
+      "attr.fields(BaseClass)[0] == attr.fields(SubClass)[0] for an inherited attribute"
+    ],
+    "tags": ["Bug", "Regression", "inheritance"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/682",
+      "issue_id": "682",
+      "labels": "Bug,Regression",
+      "author": "pganssle"
+    }
+  },
+  {
+    "case_id": "attrs-680",
+    "repository": "python-attrs/attrs",
+    "title": "Using slots class overrides custom __setattr__ in 20.1.0",
+    "description": "A custom __setattr__ defined on a slots=True attrs class is replaced by the default slot wrapper since 20.1.0; the custom method must be preserved.",
+    "acceptance_rules": [
+      "A custom __setattr__ on a slots=True attrs class is preserved",
+      "Assigning a field on such a class invokes the user-defined __setattr__"
+    ],
+    "tags": ["Bug", "slots"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/680",
+      "issue_id": "680",
+      "labels": "Bug",
+      "author": "pganssle"
+    }
+  },
+  {
+    "case_id": "attrs-673",
+    "repository": "python-attrs/attrs",
+    "title": "Hybrid behavior doesn't work when maybe_cls=None and no annotations",
+    "description": "@attr.define with a plain attr.field() and no type annotations does not follow the documented auto_attribs detection heuristic and errors.",
+    "acceptance_rules": [
+      "@attr.define with a plain attr.field() and no annotations follows the documented auto_attribs heuristic",
+      "Defining such a class does not raise an unhandled error"
+    ],
+    "tags": ["Bug", "auto_attribs"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/673",
+      "issue_id": "673",
+      "labels": "Bug",
+      "author": "euresti"
+    }
+  },
+  {
+    "case_id": "attrs-670",
+    "repository": "python-attrs/attrs",
+    "title": "@attr.define fails to auto-detect __eq__",
+    "description": "@attr.define overrides a user-defined __eq__ unless eq=False; it should auto-detect a user __eq__ and not replace it.",
+    "acceptance_rules": [
+      "@attr.define auto-detects a user-defined __eq__ and does not override it",
+      "A user __eq__ that raises ValueError is invoked when comparing"
+    ],
+    "tags": ["Bug", "eq"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/670",
+      "issue_id": "670",
+      "labels": "Bug",
+      "author": "rouge8"
+    }
+  },
+  {
+    "case_id": "attrs-661",
+    "repository": "python-attrs/attrs",
+    "title": "Restore __setattr__ when subclassing and we didn't write a new __setattr__",
+    "description": "Subclassing a frozen attrs class makes the subclass frozen too because __setattr__ is not restored; a non-frozen subclass must get object.__setattr__ back.",
+    "acceptance_rules": [
+      "A non-frozen subclass of a frozen attrs class is not itself frozen",
+      "The subclass restores __setattr__ to object.__setattr__ unless overridden"
+    ],
+    "tags": ["Bug", "frozen", "inheritance"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/661",
+      "issue_id": "661",
+      "labels": "Bug",
+      "author": "hynek"
+    }
+  },
+  {
+    "case_id": "attrs-657",
+    "repository": "python-attrs/attrs",
+    "title": "attr.asdict(retain_collection_types=False) doesn't support frozenset",
+    "description": "attr.asdict with retain_collection_types=False converts set to list but leaves frozenset as frozenset; frozenset should also convert to a list.",
+    "acceptance_rules": [
+      "attr.asdict(retain_collection_types=False) converts frozenset to list",
+      "attr.asdict converts set to list"
+    ],
+    "tags": ["Bug", "asdict"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/657",
+      "issue_id": "657",
+      "labels": "Bug",
+      "author": "kanetkarster"
+    }
+  },
+  {
+    "case_id": "attrs-716",
+    "repository": "python-attrs/attrs",
+    "title": "Python 3.10 compatibility",
+    "description": "Under Python 3.10, PEP 563 string annotations break assertions about types derived from variable annotations (PEP 526); attrs must handle stringified annotations.",
+    "acceptance_rules": [
+      "attrs works with PEP 563 string annotations (from __future__ import annotations)",
+      "Classes using variable annotations construct correctly under stringified annotations"
+    ],
+    "tags": ["Bug", "Typing", "python-3.10"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/716",
+      "issue_id": "716",
+      "labels": "Bug,Typing",
+      "author": "frenzymadness"
+    }
+  },
+  {
+    "case_id": "attrs-821",
+    "repository": "python-attrs/attrs",
+    "title": "Using field transformer breaks integration with hypothesis",
+    "description": "Attributes transformed by a field_transformer (Callable[[type, list[Attribute]], list[Attribute]]) are not cast to the generated class by hypothesis, breaking integration.",
+    "acceptance_rules": [
+      "Attributes transformed by a field_transformer are recognized by hypothesis",
+      "Hypothesis-generated values are cast to the generated attrs class"
+    ],
+    "tags": ["Bug", "Typing", "hypothesis"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/821",
+      "issue_id": "821",
+      "labels": "Bug,Typing",
+      "author": "jakub-borusewicz"
+    }
+  },
+  {
+    "case_id": "attrs-948",
+    "repository": "python-attrs/attrs",
+    "title": "Missing type annotations for attrs.cmp_using",
+    "description": "attrs.cmp_using is not declared in attrs/__init__.pyi, so mypy reports 'Module has no attribute cmp_using' even though it runs fine.",
+    "acceptance_rules": [
+      "attrs.cmp_using is declared in attrs/__init__.pyi",
+      "A mypy check that uses attrs.cmp_using reports no missing-attribute error"
+    ],
+    "tags": ["Bug", "Typing"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/948",
+      "issue_id": "948",
+      "labels": "Bug,Typing",
+      "author": "akirchhoff-modular"
+    }
+  },
+  {
+    "case_id": "attrs-1287",
+    "repository": "python-attrs/attrs",
+    "title": "Typing error when defining an enum of an attrs class",
+    "description": "An Enum of an @attrs.define class gives mypy errors (though it works at runtime); an Enum of an @attrs.frozen class errors at runtime.",
+    "acceptance_rules": [
+      "An Enum of an @attrs.define class is accepted by mypy",
+      "An Enum of an @attrs.frozen class works at runtime"
+    ],
+    "tags": ["Bug", "Typing"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/1287",
+      "issue_id": "1287",
+      "labels": "Bug,Typing",
+      "author": "MicaelJarniac"
+    }
+  },
+  {
+    "case_id": "attrs-1038",
+    "repository": "python-attrs/attrs",
+    "title": "TypeError when calling super() in decorated method",
+    "description": "Calling super().f() inside a decorated method on an attrs subclass raises 'TypeError: super(type, obj): obj must be an instance or subtype of type'.",
+    "acceptance_rules": [
+      "Calling super().method() inside a decorated method on an attrs subclass works",
+      "No TypeError: super(type, obj) is raised"
+    ],
+    "tags": ["Bug"],
+    "test_command": "pytest -q",
+    "metadata": {
+      "issue_url": "https://github.com/python-attrs/attrs/issues/1038",
+      "issue_id": "1038",
+      "labels": "Bug",
+      "author": "kdebrab"
+    }
+  }
+]

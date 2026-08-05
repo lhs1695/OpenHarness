@@ -8,6 +8,7 @@ skips already-completed transitions (state machine idempotency).
 from __future__ import annotations
 
 import asyncio
+from typing import TYPE_CHECKING
 
 from forgeflow.application.event_bus import EventBus
 from forgeflow.application.executors import ExecutionOutcome, TaskExecutor
@@ -24,6 +25,9 @@ from forgeflow.orchestration.state_machine import TaskEvent, TaskState, TaskStat
 from forgeflow.trace.collector import TraceCollector
 from forgeflow.trace.repository import TraceRepository
 
+if TYPE_CHECKING:
+    from forgeflow.orchestration.delivery import DeliveryService
+
 
 class TaskOrchestrator:
     def __init__(
@@ -33,11 +37,13 @@ class TaskOrchestrator:
         event_bus: EventBus,
         executor: TaskExecutor,
         approvals: ApprovalManager,
+        delivery: DeliveryService | None = None,
     ) -> None:
         self._store = store
         self._event_bus = event_bus
         self._executor = executor
         self._approvals = approvals
+        self._delivery = delivery
         self._running: dict[str, asyncio.Task[None]] = {}
         self._collector: TraceCollector | None = None
 
@@ -110,8 +116,29 @@ class TaskOrchestrator:
             self._advance(stored, machine, TaskEvent.VERIFICATION_FINISHED)
             self._advance(stored, machine, TaskEvent.REVIEW_FINISHED)
             self._advance(stored, machine, TaskEvent.DELIVERED)
+            self._deliver(stored, outcome)
         self._persist(stored, machine)
         self._persist_trace(task_id, run_id)
+
+    def _deliver(self, stored: StoredTask, outcome: ExecutionOutcome) -> None:
+        """Submit a real Draft PR when a delivery service and a real diff exist (B1).
+
+        Delivery failures are recorded as trace events, never crash the pipeline.
+        """
+        if self._delivery is None or outcome.patch is None:
+            return
+        try:
+            pr = self._delivery.create_draft_pr(
+                repository=stored.repository,
+                patch=outcome.patch,
+                head=f"forgeflow/{stored.id}",
+            )
+        except Exception as exc:  # noqa: BLE001 — delivery is best-effort
+            if self._collector is not None:
+                self._collector.on_task_event("delivery_failed", {"error": str(exc)})
+            return
+        if self._collector is not None:
+            self._collector.on_task_event("draft_pr_created", {"url": pr.url or ""})
 
     def _advance(self, stored: StoredTask, machine: TaskStateMachine, event: TaskEvent) -> None:
         previous = machine.state

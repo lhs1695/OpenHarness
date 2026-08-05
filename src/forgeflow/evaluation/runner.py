@@ -17,9 +17,15 @@ from forgeflow.evaluation.experiment import (
     new_experiment_config,
     new_experiment_result,
 )
-from forgeflow.evaluation.feedback import FeedbackDataset, dataset_from_json
+from forgeflow.evaluation.feedback import (
+    FeedbackDataset,
+    dataset_from_json,
+    dataset_to_json,
+    merge_datasets,
+)
 from forgeflow.evaluation.fixtures import materialize_dataset_repos
 from forgeflow.evaluation.metrics import compute_metrics
+from forgeflow.evaluation.registry import FeedbackRegistry
 from forgeflow.evaluation.reports import render_report
 from forgeflow.evaluation.retrieval import build_retrieval_context
 from forgeflow.evaluation.strategies import EvalStrategy, default_strategies
@@ -75,11 +81,17 @@ class EvalRunner:
         return result
 
 
-def _build_strategies(online: bool) -> dict[str, EvalStrategy]:
+def _build_strategies(
+    online: bool,
+    feedback_registry: FeedbackRegistry | None = None,
+    dataset_version: str = "",
+) -> dict[str, EvalStrategy]:
     if online:
         from forgeflow.evaluation.strategies_online import online_strategies
 
-        return online_strategies()
+        return online_strategies(
+            feedback_registry=feedback_registry, dataset_version=dataset_version
+        )
     return default_strategies()
 
 
@@ -91,11 +103,13 @@ async def _run_experiment(
     output_path: Path | None,
     online: bool,
     feedback_dataset_path: Path | None,
+    feedback_output_path: Path | None,
 ) -> None:
     dataset = get_dataset(dataset_id)
     feedback_dataset = None
     if feedback_dataset_path is not None:
         feedback_dataset = dataset_from_json(feedback_dataset_path.read_text(encoding="utf-8"))
+    feedback_registry = FeedbackRegistry() if online else None
     config = new_experiment_config(
         name=name,
         strategies=strategies,
@@ -105,9 +119,18 @@ async def _run_experiment(
     repositories = sorted({case.repository for case in dataset.cases})
     with tempfile.TemporaryDirectory(prefix="forgeflow-eval-") as tmp:
         work_root = materialize_dataset_repos(repo_root, Path(tmp) / "repos", repositories)
-        result = await EvalRunner(_build_strategies(online), feedback_dataset).run(
+        result = await EvalRunner(
+            _build_strategies(online, feedback_registry, dataset.version), feedback_dataset
+        ).run(
             dataset=dataset, config=config, repo_root=work_root
         )
+    if feedback_output_path is not None and feedback_registry is not None:
+        datasets = feedback_registry.list()
+        if datasets:
+            feedback_output_path.parent.mkdir(parents=True, exist_ok=True)
+            feedback_output_path.write_text(
+                dataset_to_json(merge_datasets(datasets)), encoding="utf-8"
+            )
     report = render_report(result)
     if output_path is not None:
         output_path.write_text(report, encoding="utf-8")
@@ -145,10 +168,17 @@ def main() -> None:
         help="path to a FeedbackDataset JSON; injects retrieved historical "
         "experience into the strategies (before/after comparison)",
     )
+    parser.add_argument(
+        "--feedback-output",
+        default=None,
+        help="write the collected per-case feedback datasets (merged into one "
+        "FeedbackDataset JSON) to this file; reuse it later via --feedback-dataset",
+    )
     args = parser.parse_args()
     strategies = [item.strip() for item in args.strategies.split(",") if item.strip()]
     output = Path(args.output) if args.output else None
     feedback_dataset_path = Path(args.feedback_dataset) if args.feedback_dataset else None
+    feedback_output_path = Path(args.feedback_output) if args.feedback_output else None
     asyncio.run(
         _run_experiment(
             args.name,
@@ -158,6 +188,7 @@ def main() -> None:
             output,
             args.online,
             feedback_dataset_path,
+            feedback_output_path,
         )
     )
 

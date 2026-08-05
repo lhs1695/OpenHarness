@@ -4,7 +4,30 @@
 > 当前状态快照（给新读者，不含交接清单）见 `docs/STATUS.md`。
 
 ## 上次更新
-- 2026-08-05（Agent 驱动在线评测完成 + 复盘/简历补齐）
+- 2026-08-05（Phase 3 启动：A1 真实评测轨迹回流 / B2 预算治理 / B1 真实 GitHub PR —— 代码+测试完成，在线验收运行中）
+
+## Phase 3 进行中（2026-08-05）—— 主流程已完成（除 A3 跨模型）
+
+按 `docs/PHASE3.md` 优先级推进；本分支 `feat/phase3`（基于 develop）。**A1/B2/B1/A2(基础+真实数据集)/A4/B3/B4/B5 全部完成**（A3 跨模型矩阵按用户要求保留不做）。
+
+- **B4 认证与任务属主**：✅ `api/auth.py` `ApiKeyAuthenticator`（`Authorization: Bearer` / `X-API-Key`，key→subject 映射）；`build_app(service, auth=None)`——未配 auth 时保持开放（向后兼容既有测试），配 auth 时任务端点 401 拒未认证、`requested_by` 由认证主体填充、列表按属主过滤；factory `api_key_auth_from_env`（`FORGEFLOW_API_KEYS`="key:subject,..." 或 `FORGEFLOW_API_KEY`）。测试 `test_api_auth.py`。
+- **B3 多仓库支持**：✅ `PolicyProvider` 支持多策略注册 + `for_repository`；executor 加 `policy_resolver` 按任务仓库解析策略（Local 直接换 policy；Model 重建 PlanGatesStrategy）；factory 从 `FORGEFLOW_REPOSITORIES` 构建多策略。测试 `test_multi_repo.py`（per-repo 门禁命令各自生效）。
+- **B5 服务可观测性补全**：✅ `command_results_from_eval` 把策略聚合的 gate/test 结果映射为 `ExecutionResult`；`ModelDrivenTaskExecutor` 填入 `outcome.command_results` → orchestrator `_record_commands` 落 trace → `/timeline` 出现 `command_finished`。测试含服务级 trace 断言。
+- **A2 真实数据集**：✅ `EvalCase.metadata`（基础件）+ `evals/data/issues-attrs.json`（**21 个真实 python-attrs/attrs bug issue**，title/description/acceptance_rules 从 issue 正文诚实推导，metadata 含真实 issue_url/issue_id/labels/author）+ `datasets.py` `load_issues_dataset`/`get_dataset("issues-attrs")`。**如实标注**：运行需对应仓库 fixture（真实 attrs 仓库未 fixture 化，故"完成率可对到 issue"需补 fixture 后才可跑）。
+- **A4 检索升级（语义 + 中文）**：✅ `_tokenize` 增加 CJK bigram（中文查询命中中文内容）；可选语义打分（`sentence-transformers`，pyproject 新增 `[retrieval]` extra）——命中 top-k 候选后按 embedding 重排；无依赖时关键词打分兜底。测试 `test_retrieval.py`（中文命中 + 无依赖 fallback）。
+- **B1 orchestrator 接线**：✅ 在线策略在 cleanup 前捕获真实 `git diff HEAD` 到 `EvalResult.metadata["diff"]`；executor 经 `patch_from_eval` 构建 `Patch` 进 `ExecutionOutcome.patch`；`TaskOrchestrator` 接受可选 `delivery`，任务 COMPLETED 且带 patch 时调用 `create_draft_pr`（`head=forgeflow/{task_id}`），失败记 trace 事件不崩管道；factory 接线 `delivery_service_from_env`。测试：策略 diff 捕获、executor patch、交付调用/跳过。
+
+
+
+按 `docs/PHASE3.md` 优先级推进；本分支 `feat/phase3`（基于 develop）。
+
+- **A1 真实评测轨迹回流**：✅ 代码+测试完成，**在线验收已跑出真实样本**（`evals/data/real-feedback.json`，400 样本 / 369 success / 31 failure，8 case 全覆盖，provenance 含 dataset_version/case_id/repository/strategy）。在线策略（`evaluation/strategies_online.py`）新增可选 `feedback_registry` / `dataset_version`；每个 case 建 `TraceCollector`，经 `_TraceForwardingEngine` 把 plan/fix/review 各阶段 StreamEvent 转发入 collector，结束用 `TraceSampleBuilder.build` 产出 `FeedbackDataset` 注册进 `FeedbackRegistry`。runner 新增 `--feedback-output <json>`：在线运行结束后 `merge_datasets` 合并所有注册数据集写盘（可直接被 `--feedback-dataset` 回读做 before/after）。测试：`test_online_trace_feedback.py` + online 冒烟（`test_strategies_online_live.py`）。
+  - **第一批真实在线结果**（`evals/reports/2026-08-05-online-a1-feedback.md`）：plan_gates 完成率 **75%（6/8）**；失败 billing-003（required_commands 硬门禁未过）+ billing-004（**900s 墙钟超时**——真实随机性，与上一轮该 case 被修复不同）。
+  - **before/after 二次运行**（`evals/reports/2026-08-05-online-a1-before-after.md`）：带真实反馈检索 **100%（8/8）** vs 不带 **75%**。8 case 检索均命中真实成功样本。**如实标注**：单次运行含模型随机性（before 的 billing-004 超时为随机抖动），不可断言检索必然提升；但真实反馈已可回流并被检索消费——A1 闭环成立。
+  - 与计划的偏差（有意）：collector 的 `task_id` 用 `{case_id}-{strategy}-{run_token}` 而非 `case_id`，避免多策略同秒注册同一数据集 id 覆盖丢数据；`--feedback-output` 写**合并后的单一** FeedbackDataset（而非 N 个文件），保证 `dataset_from_json` 往返可读、检索直接可消费。
+- **B2 预算与成本治理**：✅ `ModelDrivenTaskExecutor` 接入 `BudgetTracker`（`application/executors.py`）；预算由 `budget_from_policy_and_env` 派生（policy `max_agent_steps`/`max_execution_minutes` + `FORGEFLOW_BUDGET_MAX_*` env 覆盖）；`execute` 记录 steps/tokens/duration，超限返回 `ExecutionOutcome(status="budget_exceeded")`，orchestrator 已落 `BUDGET_EXCEEDED` 状态（无需改状态机）。测试：`test_model_executor.py` 新增超步/超 token/策略派生/服务落库 BUDGET_EXCEEDED。
+- **B1 真实 GitHub PR 提交**：✅ `infrastructure/github.py` 新增 `GitHubPrClient`（gh CLI 封装：repo view / pr create --draft，`GH_TOKEN` 注入，runner 可注入以便测试）；`DeliveryService` 放开守卫——真实仓库配置 GitHub client 时走真远程 Draft PR（返回 url/number），测试仓库保持本地 Draft 语义，无 GitHub client 时真实仓库仍被 `DraftPrGuardError` 拒绝。`application/factory.py` 读 `GITHUB_TOKEN`（`github_client_from_env` / `delivery_service_from_env`，`FORGEFLOW_TEST_REPOSITORIES`）。测试：`test_github_delivery.py`（fake runner 验证 gh 参数/环境/错误，守卫与 Draft 语义）。**未做**：orchestrator/交付链路真正在审批后调用 `create_draft_pr`（需 diff+head 分支，留待后续集成）。
+- **A2 基础件**：✅ `EvalCase` 增加 `metadata: dict[str, str]` 字段（默认空，用于 issue_url/author 等 provenance）；`test_eval_datasets.py` 覆盖读写。
 
 ## 当前状态
 

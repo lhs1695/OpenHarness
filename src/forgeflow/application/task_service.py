@@ -101,8 +101,12 @@ class TaskService:
             raise TaskNotFoundError(task_id)
         return task
 
-    def list_tasks(self) -> list[StoredTask]:
-        return self._store.list_tasks()
+    def list_tasks(self, *, requested_by: str | None = None) -> list[StoredTask]:
+        """List tasks, optionally filtered to one owner (PHASE3 B4)."""
+        tasks = self._store.list_tasks()
+        if requested_by:
+            tasks = [task for task in tasks if task.requested_by == requested_by]
+        return tasks
 
     def start_task(self, task_id: str, *, command_id: str | None = None) -> StoredTask:
         self.start_task_message(task_id, command_id=command_id)
@@ -213,3 +217,10 @@ class PolicyProvider:
 
     def get(self, repository: str) -> RepositoryPolicy:
         return self._policies.get(repository, RepositoryPolicy(repository=repository))
+
+    def for_repository(self, repository: str) -> RepositoryPolicy:
+        """Alias of :meth:`get` (PHASE3 B3 naming)."""
+        return self.get(repository)
+
+    def repositories(self) -> list[str]:
+        return list(self._policies)

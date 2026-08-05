@@ -77,6 +77,19 @@ def dataset_from_json(text: str) -> FeedbackDataset:
     )
 
 
+def merge_datasets(datasets: list[FeedbackDataset]) -> FeedbackDataset:
+    """Merge multiple datasets into one (archiving keeps them reusable by retrieval)."""
+    samples = tuple(sample for dataset in datasets for sample in dataset.samples)
+    pairs = tuple(pair for dataset in datasets for pair in dataset.preference_pairs)
+    first = datasets[0] if datasets else None
+    return FeedbackDataset(
+        id=f"{first.id}-merged" if first is not None else "feedback-empty",
+        version=now_iso(),
+        samples=samples,
+        preference_pairs=pairs,
+    )
+
+
 def segment_trace(events: list[SpanEvent]) -> list[list[SpanEvent]]:
     """Group events into segments: each model turn is one segment; others standalone."""
     segments: list[list[SpanEvent]] = []

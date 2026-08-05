@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -18,6 +20,7 @@ class EvalCase:
     acceptance_rules: tuple[str, ...] = ()
     tags: tuple[str, ...] = ()
     test_command: str = "pytest -q"
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -132,11 +135,45 @@ def default_dataset() -> Dataset:
     return Dataset(id="default", version="2026-08-05", cases=billing.cases + cart.cases)
 
 
+# File-backed real-issue datasets (PHASE3 A2). Paths are cwd-relative so the
+# runner CLI works from the repository root.
+_FILE_DATASETS: dict[str, Path] = {
+    "issues-attrs": Path("evals/data/issues-attrs.json"),
+}
+
+
+def load_issues_dataset(path: Path, *, dataset_id: str, version: str = "2026-08-05") -> Dataset:
+    """Load a real-issue dataset from a JSON array of EvalCase-shaped dicts (A2)."""
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    cases = tuple(
+        EvalCase(
+            case_id=str(item["case_id"]),
+            repository=str(item["repository"]),
+            title=str(item["title"]),
+            description=str(item.get("description", "")),
+            task_type=str(item.get("task_type", "bugfix")),
+            priority=str(item.get("priority", "P2")),
+            acceptance_rules=tuple(str(rule) for rule in item.get("acceptance_rules", [])),
+            tags=tuple(str(tag) for tag in item.get("tags", [])),
+            test_command=str(item.get("test_command", "pytest -q")),
+            metadata={
+                str(key): str(value) for key, value in item.get("metadata", {}).items()
+            },
+        )
+        for item in raw
+    )
+    return Dataset(id=dataset_id, version=version, cases=cases)
+
+
 def get_dataset(dataset_id: str) -> Dataset:
     datasets = {
         dataset.id: dataset
         for dataset in (billing_smoke_dataset(), cart_smoke_dataset(), default_dataset())
     }
-    if dataset_id not in datasets:
-        raise ValueError(f"unknown dataset: {dataset_id}")
-    return datasets[dataset_id]
+    if dataset_id in datasets:
+        return datasets[dataset_id]
+    if dataset_id in _FILE_DATASETS:
+        path = _FILE_DATASETS[dataset_id]
+        if path.exists():
+            return load_issues_dataset(path, dataset_id=dataset_id)
+    raise ValueError(f"unknown dataset: {dataset_id}")

@@ -4,6 +4,20 @@
 > **业务能力**与**数据**两个支柱推进，把"验证过的平台"推向"贴近生产、越用越好"。
 > 每项含 现状 / 做法（详细） / 测试 / 验收。
 
+## 本轮执行状态（2026-08-05，分支 `feat/phase3`）
+
+**A1/A2/B1/B2/B3/B4/B5/A4 全部完成**（A3 跨模型矩阵按用户要求保留不做）。质量基线：**240 passed / 1 skipped / 7 deselected**，ruff clean，mypy 57 源文件 clean。
+
+- **A1 真实评测轨迹回流**：✅ 代码+测试+在线验收完成。真实样本 `evals/data/real-feedback.json`（400 样本 / 369 success / 31 failure）。before/after：不带检索 **75%（6/8）** → 带真实反馈检索 **100%（8/8）**（单次运行，含模型随机性，如实记录）。
+- **B2 预算与成本治理**：✅ `ModelDrivenTaskExecutor` 接入 `BudgetTracker`（policy+env 派生预算），超限返回 `budget_exceeded`，orchestrator 落 `BUDGET_EXCEEDED`。
+- **B1 真实 GitHub PR 提交**：✅ 能力层 + **orchestrator 接线**。在线策略捕获真实 diff → `ExecutionOutcome.patch` → 任务 COMPLETED 且配 DeliveryService 时调用 `create_draft_pr`（head=forgeflow/{task_id}）。
+- **A2 真实数据集**：✅ `EvalCase.metadata` + `evals/data/issues-attrs.json`（**21 个真实 attrs bug issue**，issue_url 可溯源）+ `get_dataset("issues-attrs")`。运行需补真实仓库 fixture（如实标注）。
+- **A4 检索升级**：✅ 中文 CJK bigram + 可选语义打分（`[retrieval]` extra，sentence-transformers），无依赖兜底。
+- **B3 多仓库**：✅ PolicyProvider 多策略 + executor `policy_resolver` + factory `FORGEFLOW_REPOSITORIES`。
+- **B4 认证**：✅ `ApiKeyAuthenticator`（Bearer / X-API-Key），认证主体填 requested_by、列表按属主过滤；未配 auth 时开放（兼容既有测试）。
+- **B5 command_results 落 trace**：✅ 模型 executor 填 command_results → `/timeline` 有 command_finished。
+- **遗留**：A3 跨模型（保留）；A2 运行需 attrs 仓库 fixture；B1 真实远端提交需在隔离测试仓库验证。
+
 ## 给下一轮对话的提示词（复制本块给 Claude Code）
 
 ```text
@@ -22,13 +36,10 @@
 - 跑测试前清全部 ANTHROPIC_*（含 ANTHROPIC_BASE_URL）；在线评测需 DeepSeek 凭据（~/.openharness/settings.json）。
 
 ## 本轮任务（按优先级，一项完成再下一项）
-1. [最高优先] A1 真实评测轨迹回流（见 PHASE3 §2 A1 详细做法）
-   - 让在线策略把 StreamEvent 转发给 TraceCollector → TraceSampleBuilder → FeedbackRegistry。
-   - 验收：一次在线评测后 FeedbackRegistry 有真实 success/failure 样本；用真实历史样本重跑
-     检索 before/after，报告入 evals/reports/。数字必须真实（§16）。
-2. B2 预算与成本治理：BudgetTracker 接入 ModelDrivenTaskExecutor，超限返回 budget_exceeded。
-3. B1 真实 GitHub PR 提交：复用 openharness/autopilot 的 gh CLI 封装，配 GITHUB_TOKEN。
-4. A2/A3/A4 与 B3/B4/B5 按 PHASE3 §2/§3 推进。
+1. [最高优先] A1 真实评测轨迹回流 —— ✅ 已完成（见上文"本轮执行状态"与 `docs/EVALUATION.md` §3.6）。
+2. B2 预算与成本治理 —— ✅ 已完成。
+3. B1 真实 GitHub PR 提交 —— ✅ 能力层已完成；**剩余**：orchestrator 审批后真正调用 `create_draft_pr` 的集成（需 diff + head 分支）。
+4. 继续推进：A2 真实数据集（`EvalCase.metadata` 已加；需 20+ 真实 GitHub issue 构造 `evals/data/issues-*.json`）、A3 跨模型矩阵、A4 语义检索、B3 多仓库、B4 认证、B5 command_results 落 trace。
 
 ## 规则
 - 不改 src/openharness/ 任何源文件；新能力放 src/forgeflow/。

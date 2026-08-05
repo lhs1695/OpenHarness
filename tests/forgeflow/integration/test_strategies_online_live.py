@@ -15,6 +15,7 @@ import pytest
 from forgeflow.domain.policy import RepositoryPolicy
 from forgeflow.evaluation.datasets import EvalCase
 from forgeflow.evaluation.fixtures import materialize_git_repo
+from forgeflow.evaluation.registry import FeedbackRegistry
 from forgeflow.evaluation.strategies_online import (
     PlanGatesReviewerStrategy,
     PlanGatesStrategy,
@@ -87,3 +88,26 @@ async def test_plan_gates_reviewer_online(tmp_path: Path) -> None:
     assert result.status in ("passed", "failed")
     assert result.failure_class in ("pass", "agent_failed")
     assert result.token_usage > 0
+
+
+@pytest.mark.asyncio
+async def test_raw_agent_online_registers_feedback(tmp_path: Path) -> None:
+    """A1 冒烟：真实运行后 FeedbackRegistry 应拿到带 provenance 的样本。"""
+    _maybe_skip()
+    repo = materialize_git_repo(FIXTURES / "billing-service", tmp_path)
+    registry = FeedbackRegistry()
+    strategy = RawAgentStrategy(
+        name="raw",
+        policy=POLICY,
+        feedback_registry=registry,
+        dataset_version="2026-08-05",
+    )
+    await strategy.run(_billing_case(), repo_path=repo, strategy_name="raw")
+    datasets = registry.list()
+    assert datasets, "expected a feedback dataset after a real online run"
+    dataset = datasets[0]
+    assert dataset.samples
+    sample = dataset.samples[0]
+    assert sample.provenance["case_id"] == "billing-001"
+    assert sample.provenance["repository"] == "billing-service"
+    assert sample.classification in ("success", "failure")

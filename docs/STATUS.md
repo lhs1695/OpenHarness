@@ -4,7 +4,7 @@
 
 ## 1. 一句话状态
 
-**M0–M10 全部完成，Agent 驱动在线评测上线，NEXT_PHASE（Phase 2）计划项全部落地；`develop` 已推送 origin，upstream 0 新提交无需同步。**
+**M0–M10 全部完成，Agent 驱动在线评测上线，Phase 2 计划项全部落地；Phase 3（生产化+数据闭环）主流程完成（除 A3 跨模型保留）：A1 真实轨迹回流（400 样本，检索 75%→100%）、A2 真实数据集（21 个真实 issue）、A4 中文/语义检索、B1 真实 PR（含 orchestrator 接线）、B2 预算、B3 多仓库、B4 认证、B5 command_results 落 trace（分支 `feat/phase3`）。**
 
 ## 2. 里程碑
 
@@ -17,6 +17,7 @@ M0 审计 → M1 适配层 → M2 控制平面 → M3 隔离执行 → M4 质量
 | 确定性本地基线（无模型） | `plan_gates` 完成率 **25%（2/8）** | `evals/reports/2026-08-05-default-plan_gates.md` |
 | 在线三策略 | raw **100%（8/8）** · plan_gates **75%** · plan_gates_reviewer **75%** | `evals/reports/2026-08-05-online-default.md` |
 | 经验检索 before/after | plan_gates **75% → 87.5%**（注入种子经验） | `evals/reports/2026-08-05-online-default-retrieval.md` |
+| A1 真实反馈回流（Phase 3） | 真实样本 400 个（369 success / 31 failure）；不带检索 **75%** → 带真实反馈检索 **100%**（单次运行含随机性） | `evals/data/real-feedback.json` · `evals/reports/2026-08-05-online-a1-*.md` |
 | 门禁 vs raw | 平均工具失败 0.88 → 0.50 次/案例（**降约 43%**），完成率 100%→75% 换安全 | — |
 
 - 6 个 billing 基线失败案例：raw 全翻转；门禁策略翻 4 个；billing-005 被 Reviewer 拒绝（如实记录）。
@@ -50,7 +51,7 @@ M0 审计 → M1 适配层 → M2 控制平面 → M3 隔离执行 → M4 质量
 | CI 在线评测 job | ✅ 已实现（`workflow_dispatch` 手动触发，无 secret 自动跳过）；可选加 `schedule` 定时跑 |
 | 上游同步（P2-1） | ⏸ upstream 0 新提交，按规则仅在必要时做 |
 | 质量基线维护（P2-3） | 持续：改动后 `pytest tests/forgeflow` + `ruff` + `mypy` |
-| 可选 | CI 定时评测、真实 trace 回流到反馈管道（当前种子集为手工构建） |
+| Phase 3 剩余 | ⏸ 主流程完成（A1/A2/A4/B1/B2/B3/B4/B5）；**A3 跨模型保留不做**；A2 运行需补 attrs 仓库 fixture |
 
 ## 9. 文档导航
 

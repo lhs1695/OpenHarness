@@ -169,7 +169,9 @@ class FakeReviewerFactory:
         self._blockers = blockers
         self.diffs: list[str] = []
 
-    def __call__(self, session: object, *, workspace: str, model: str) -> FakeReviewer:
+    def __call__(
+        self, session: object, *, workspace: str, model: str, collector: object = None
+    ) -> FakeReviewer:
         return FakeReviewer(self._verdict, self._blockers, self.diffs)
 
 

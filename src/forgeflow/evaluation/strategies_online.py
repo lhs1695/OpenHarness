@@ -24,7 +24,7 @@ import shlex
 import sys
 import time
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Protocol, cast
 from uuid import uuid4
@@ -32,16 +32,25 @@ from uuid import uuid4
 from forgeflow.domain.policy import RepositoryPolicy
 from forgeflow.domain.task import DevelopmentTask
 from forgeflow.evaluation.datasets import EvalCase, EvalResult
+from forgeflow.evaluation.feedback import TraceSampleBuilder
+from forgeflow.evaluation.registry import FeedbackRegistry
 from forgeflow.evaluation.strategies import (
     _BASE_POLICY,
     EvalStrategy,
     _policy_for_case,
     _resolved_test_command,
 )
+from forgeflow.execution.base import ExecutionResult
 from forgeflow.execution.worktree import WorktreeExecutionBackend
 from forgeflow.integrations.openharness.adapter import OpenHarnessAdapter
 from forgeflow.quality.reports import QualityGateRunner
-from forgeflow.quality.reviewer import Reviewer, ReviewReport, build_review_engine
+from forgeflow.quality.reviewer import (
+    ReviewEngineLike,
+    Reviewer,
+    ReviewReport,
+    build_review_engine,
+)
+from forgeflow.trace.collector import TraceCollector
 from forgeflow.trace.events import estimate_cost
 from openharness.engine.stream_events import (
     AssistantTextDelta,
@@ -160,6 +169,35 @@ async def default_runtime_factory(
     return _BuildRuntimeSession(bundle)
 
 
+class _TraceForwardingEngine:
+    """Engine proxy that forwards every StreamEvent to a TraceCollector.
+
+    Each strategy wraps the plan / fix / review engines with this proxy so one
+    per-case collector accumulates the whole trace without the adapter or the
+    reviewer knowing about tracing (A1 数据回流).
+    """
+
+    def __init__(self, engine: AgentEngine, collector: TraceCollector) -> None:
+        self._engine = engine
+        self._collector = collector
+
+    def submit_message(self, prompt: str) -> AsyncIterator[StreamEvent]:
+        async def _forward() -> AsyncIterator[StreamEvent]:
+            async for event in self._engine.submit_message(prompt):
+                self._collector.on_stream_event(event)
+                yield event
+
+        return _forward()
+
+    @property
+    def total_usage(self) -> object:
+        return self._engine.total_usage
+
+    @property
+    def model(self) -> str:
+        return self._engine.model
+
+
 ReviewerFactory = Callable[..., ReviewerLike]
 
 
@@ -168,20 +206,23 @@ def _default_reviewer_factory(
     *,
     workspace: str,
     model: str,
+    collector: TraceCollector | None = None,
 ) -> ReviewerLike:
     from openharness.api.client import SupportsStreamingMessages
 
     api_client = session.api_client
     if api_client is None:
         raise RuntimeError("runtime session has no streaming API client for review")
-    engine = build_review_engine(
+    review_engine: ReviewEngineLike = build_review_engine(
         cast(SupportsStreamingMessages, api_client),
         cwd=workspace,
         model=model,
         system_prompt=REVIEWER_SYSTEM_PROMPT,
         max_turns=_REVIEW_MAX_TURNS,
     )
-    return Reviewer(engine)
+    if collector is not None:
+        review_engine = _TraceForwardingEngine(cast(AgentEngine, review_engine), collector)
+    return Reviewer(review_engine)
 
 
 # ---------------------------------------------------------------------------
@@ -361,12 +402,17 @@ class _BaseOnlineStrategy:
         runtime_factory: RuntimeFactory = default_runtime_factory,
         reviewer_factory: ReviewerFactory | None = None,
         run_token: str = "",
+        feedback_registry: FeedbackRegistry | None = None,
+        dataset_version: str = "",
     ) -> None:
         self._name = name
         self._policy = policy
         self._runtime_factory = runtime_factory
         self._reviewer_factory = reviewer_factory or _default_reviewer_factory
         self._run_token = run_token or uuid4().hex[:8]
+        self._feedback_registry = feedback_registry
+        self._dataset_version = dataset_version
+        self._collector: TraceCollector | None = None
 
     @property
     def name(self) -> str:
@@ -376,6 +422,60 @@ class _BaseOnlineStrategy:
         # Unique per (case, strategy, run) so strategies never share a worktree
         # and a crashed prior run cannot be fast-resumed with stale changes.
         return f"{case.case_id}-{self._name}-{self._run_token}"
+
+    def _new_collector(self, case: EvalCase) -> TraceCollector:
+        collector = TraceCollector(
+            task_id=self._task_id(case), run_id=f"run_{case.case_id}"
+        )
+        self._collector = collector
+        return collector
+
+    def _wrapped(self, engine: AgentEngine) -> AgentEngine:
+        """Wrap ``engine`` so every StreamEvent also lands in the per-case collector."""
+        if self._collector is None:
+            return engine
+        return _TraceForwardingEngine(engine, self._collector)
+
+    def _record_command(self, result: ExecutionResult) -> None:
+        if self._collector is None:
+            return
+        self._collector.on_command(
+            command=list(result.command),
+            returncode=result.returncode,
+            duration_ms=result.duration_ms,
+            output=f"{result.stdout}\n{result.stderr}",
+        )
+
+    def _register_feedback(self, case: EvalCase) -> None:
+        """Build a FeedbackDataset from the collected trace and register it (A1)."""
+        registry = self._feedback_registry
+        collector = self._collector
+        if registry is None or collector is None:
+            return
+        events = collector.events()
+        if not events:
+            return
+        dataset = TraceSampleBuilder().build(
+            task_id=self._task_id(case),
+            run_id=f"run_{case.case_id}",
+            events=events,
+            provenance={
+                "dataset_version": self._dataset_version,
+                "case_id": case.case_id,
+                "repository": case.repository,
+                "strategy": self._name,
+            },
+        )
+        registry.register(dataset)
+
+    async def _attach_diff(self, result: EvalResult, workspace: Path) -> EvalResult:
+        """Attach the agent's real worktree diff to the result (B1 delivery needs it)."""
+        if "diff" in result.metadata:
+            return result
+        diff = await _git_diff(workspace)
+        if diff:
+            return replace(result, metadata={**result.metadata, "diff": diff})
+        return result
 
     async def _run_plan(self, task: DevelopmentTask, workspace: Path) -> tuple[str, dict[str, int]]:
         session = await self._runtime_factory(
@@ -387,7 +487,7 @@ class _BaseOnlineStrategy:
         try:
             try:
                 plan = await asyncio.wait_for(
-                    OpenHarnessAdapter().run_plan(task, session.engine),
+                    OpenHarnessAdapter().run_plan(task, self._wrapped(session.engine)),
                     timeout=_PLAN_TIMEOUT_SECONDS,
                 )
             except TimeoutError as exc:
@@ -414,7 +514,8 @@ class _BaseOnlineStrategy:
         )
         try:
             return await _run_agent_turn(
-                session.engine, build_fix_prompt(case, plan_text=plan_text, context=context)
+                self._wrapped(session.engine),
+                build_fix_prompt(case, plan_text=plan_text, context=context),
             )
         finally:
             await session.close()
@@ -443,15 +544,19 @@ class RawAgentStrategy(_BaseOnlineStrategy):
     ) -> EvalResult:
         started = time.monotonic()
         backend = WorktreeExecutionBackend(repo_path)
+        self._new_collector(case)
+        result: EvalResult
+        workspace: Path | None = None
         try:
             workspace = Path(await backend.prepare(self._task_id(case), case.repository))
             stats = await self._run_fix_agent(case, workspace, context=context)
             test_command = _resolved_test_command(case.test_command)
             test_result = await backend.execute(shlex.split(test_command), _TEST_TIMEOUT_SECONDS)
+            self._record_command(test_result)
             tests_passed = test_result.returncode == 0 and not test_result.timed_out
             tokens = _tokens(stats.input_tokens, stats.output_tokens)
             duration_ms = int((time.monotonic() - started) * 1000)
-            return EvalResult(
+            result = EvalResult(
                 case_id=case.case_id,
                 strategy=strategy_name,
                 status="passed" if tests_passed else "failed",
@@ -467,10 +572,14 @@ class RawAgentStrategy(_BaseOnlineStrategy):
                     "agent_text_len": len(stats.text),
                 },
             )
+            if workspace is not None:
+                result = await self._attach_diff(result, workspace)
         except Exception as exc:  # noqa: BLE001 — any strategy failure becomes an error result
-            return self._error_result(case, strategy_name, started, exc)
+            result = self._error_result(case, strategy_name, started, exc)
         finally:
             await backend.cleanup()
+        self._register_feedback(case)
+        return result
 
 
 class PlanGatesStrategy(_BaseOnlineStrategy):
@@ -486,6 +595,9 @@ class PlanGatesStrategy(_BaseOnlineStrategy):
     ) -> EvalResult:
         started = time.monotonic()
         backend = WorktreeExecutionBackend(repo_path)
+        self._new_collector(case)
+        result: EvalResult
+        workspace: Path | None = None
         try:
             workspace = Path(await backend.prepare(self._task_id(case), case.repository))
             task = case_to_task(case)
@@ -497,7 +609,7 @@ class PlanGatesStrategy(_BaseOnlineStrategy):
                 task_type=case.task_type,
                 workspace=workspace,
             )
-            return self._gates_result(
+            result = self._gates_result(
                 case,
                 strategy_name,
                 started,
@@ -506,10 +618,14 @@ class PlanGatesStrategy(_BaseOnlineStrategy):
                 stats=stats,
                 plan_text=plan_text,
             )
+            if workspace is not None:
+                result = await self._attach_diff(result, workspace)
         except Exception as exc:  # noqa: BLE001 — any strategy failure becomes an error result
-            return self._error_result(case, strategy_name, started, exc)
+            result = self._error_result(case, strategy_name, started, exc)
         finally:
             await backend.cleanup()
+        self._register_feedback(case)
+        return result
 
     def _gates_result(
         self,
@@ -580,6 +696,9 @@ class PlanGatesReviewerStrategy(PlanGatesStrategy):
     ) -> EvalResult:
         started = time.monotonic()
         backend = WorktreeExecutionBackend(repo_path)
+        self._new_collector(case)
+        result: EvalResult
+        workspace: Path | None = None
         try:
             workspace = Path(await backend.prepare(self._task_id(case), case.repository))
             task = case_to_task(case)
@@ -592,7 +711,7 @@ class PlanGatesReviewerStrategy(PlanGatesStrategy):
             )
             try:
                 stats = await _run_agent_turn(
-                    session.engine,
+                    self._wrapped(session.engine),
                     build_fix_prompt(case, plan_text=plan_text, context=context),
                 )
                 runner = QualityGateRunner(backend, _policy_for_case(self._policy, case))
@@ -608,6 +727,7 @@ class PlanGatesReviewerStrategy(PlanGatesStrategy):
                         session,
                         workspace=str(workspace),
                         model=session.engine.model,
+                        collector=self._collector,
                     )
                     try:
                         review = await asyncio.wait_for(
@@ -619,7 +739,7 @@ class PlanGatesReviewerStrategy(PlanGatesStrategy):
                         ) from exc
             finally:
                 await session.close()
-            return self._gates_result(
+            result = self._gates_result(
                 case,
                 strategy_name,
                 started,
@@ -630,20 +750,47 @@ class PlanGatesReviewerStrategy(PlanGatesStrategy):
                 review=review,
                 require_review=True,
             )
+            if workspace is not None:
+                result = await self._attach_diff(result, workspace)
         except Exception as exc:  # noqa: BLE001 — any strategy failure becomes an error result
-            return self._error_result(case, strategy_name, started, exc)
+            result = self._error_result(case, strategy_name, started, exc)
         finally:
             await backend.cleanup()
+        self._register_feedback(case)
+        return result
 
 
-def online_strategies() -> dict[str, EvalStrategy]:
-    """The online strategy set: raw / plan_gates / plan_gates_reviewer."""
+def online_strategies(
+    feedback_registry: FeedbackRegistry | None = None,
+    dataset_version: str = "",
+) -> dict[str, EvalStrategy]:
+    """The online strategy set: raw / plan_gates / plan_gates_reviewer.
+
+    When ``feedback_registry`` is given, each strategy forwards its per-case
+    stream events into a TraceCollector and registers the resulting
+    FeedbackDataset (A1 数据回流).
+    """
     strategies: dict[str, EvalStrategy] = {}
     for name in ("raw", "plan_gates", "plan_gates_reviewer"):
         if name == "raw":
-            strategies[name] = RawAgentStrategy(name=name, policy=_BASE_POLICY)
+            strategies[name] = RawAgentStrategy(
+                name=name,
+                policy=_BASE_POLICY,
+                feedback_registry=feedback_registry,
+                dataset_version=dataset_version,
+            )
         elif name == "plan_gates":
-            strategies[name] = PlanGatesStrategy(name=name, policy=_BASE_POLICY)
+            strategies[name] = PlanGatesStrategy(
+                name=name,
+                policy=_BASE_POLICY,
+                feedback_registry=feedback_registry,
+                dataset_version=dataset_version,
+            )
         else:
-            strategies[name] = PlanGatesReviewerStrategy(name=name, policy=_BASE_POLICY)
+            strategies[name] = PlanGatesReviewerStrategy(
+                name=name,
+                policy=_BASE_POLICY,
+                feedback_registry=feedback_registry,
+                dataset_version=dataset_version,
+            )
     return strategies
