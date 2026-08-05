@@ -1329,7 +1329,6 @@ upstream = HKUDS/OpenHarness
 
 请先阅读：
 - README
-- README.zh-CN
 - CHANGELOG
 - pyproject.toml
 - 当前仓库的开发说明

@@ -1,7 +1,7 @@
 # NEXT_PHASE — ForgeFlow 下一阶段计划（Phase 2：加固与扩展）
 
 > M0–M10 里程碑与 Agent 驱动在线评测（2026-08-05）已完成后的路线图。
-> 本文档与 `PLANS.md`（里程碑历史）、根 `NEXT_STEPS.md`（交接提示词）、
+> 本文档与 `PLANS.md`（里程碑历史）、`docs/NEXT_STEPS.md`（交接提示词）、
 > `HANDOFF.md`（会话交接）、`RETROSPECTIVE.md`（复盘）区分：聚焦"接下来做什么"，
 > 每项含目标 / 验收 / 涉及文件 / 复用 / 风险 / 优先级。
 
@@ -14,7 +14,7 @@
 
 ## 2. 工作项（按优先级）
 
-### P0-1 Docker Compose 端到端验证（NEXT_STEPS §4.4 落地）—— ✅ 已完成（2026-08-05）
+### P0-1 Docker Compose 端到端验证（`docs/NEXT_STEPS.md` §4.4 落地）—— ✅ 已完成（2026-08-05）
 - **结果**：`docker compose up -d` 起 postgres(healthy)/redis/api/worker 四服务；`GET localhost:8000/api/v1/tasks` 返回 200；POST 建任务 → start → 状态机 9 次流转 → **COMPLETED**。api 镜像实际 **597MB**（未压缩）。
 - **修的问题（Dockerfile）**：
   1. 容器内 pip 默认 PyPI 在墙内挂起 → 加 `ARG PIP_INDEX_URL`（默认清华镜像）。
@@ -39,7 +39,7 @@
 - **验收**：`git push origin upstream-base-0.1.9` 后可 `git show-ref` 核验。
 - **风险**：推送标签属共享状态，执行前确认。
 
-### P2-1 上游同步（NEXT_STEPS §4.5）—— ✅ 已执行（2026-08-05，无变化）
+### P2-1 上游同步（`docs/NEXT_STEPS.md` §4.5）—— ✅ 已执行（2026-08-05，无变化）
 - **规则**：仅里程碑间隙、且为安全/兼容/严重 bugfix 时 `git fetch upstream` → 独立 `sync/upstream-<sha>` 分支 → 上游测试 → ForgeFlow 回归 → 更新 `UPSTREAM_MAP`。
 - **验收**：`UPSTREAM_MAP` 更新；`src/openharness` 仍 0 修改（确需修改须 `patches/` + ADR）。
 - **结果**：`git fetch upstream` 后 `upstream/main` 相对 `develop` **0 新提交**（`upstream-base-0.1.9` = upstream/main）→ **无需同步**，上游边界不变，`UPSTREAM_MAP` 无需更新。

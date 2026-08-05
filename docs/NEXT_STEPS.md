@@ -21,7 +21,7 @@
 - docs/PLANS.md              （里程碑进度：M0–M10 已完成）
 - docs/UPSTREAM_MAP.md 与 docs/UPSTREAM_CONTRIBUTIONS.md（上游边界）
 - docs/EVALUATION.md         （评测与数据回流方法学）
-- docs/HANDOFF.md 与 NEXT_STEPS.md（交接与任务清单）
+- docs/HANDOFF.md 与 docs/NEXT_STEPS.md（交接与任务清单）
 
 ## 环境
 - 从 `develop` 派生新 worktree：

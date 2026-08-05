@@ -1,5 +1,7 @@
 # OpenHarness Showcase
 
+> **上游文档**：本文档属于上游 OpenHarness，非 ForgeFlow 文档。ForgeFlow 的演示见 `docs/DEMO.md`。
+
 This page collects concrete ways to use OpenHarness without overselling the project. Each example is intended to be small, reproducible, and easy to extend.
 
 ## 1. Repository-aware coding assistant

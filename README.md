@@ -89,6 +89,7 @@ docker compose up --build
 
 | 文档 | 内容 |
 |---|---|
+| [docs/README.md](docs/README.md) | **文档总索引**（分组导航） |
 | [PROJECT_SPEC.md](PROJECT_SPEC.md) | 项目规格、里程碑、验收标准 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构（含 Mermaid 图） |
 | [docs/STATE_MACHINE.md](docs/STATE_MACHINE.md) | 状态机（含 Mermaid 图） |

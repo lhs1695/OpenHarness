@@ -1,6 +1,7 @@
 # HANDOFF — 跨会话交接
 
 > 每次会话结束/里程碑结束更新本文件。新会话开始先读 `PROJECT_SPEC.md`、`docs/ARCHITECTURE.md`、`docs/PLANS.md`、`docs/UPSTREAM_MAP.md` 与本文件。
+> 当前状态快照（给新读者，不含交接清单）见 `docs/STATUS.md`。
 
 ## 上次更新
 - 2026-08-05（Agent 驱动在线评测完成 + 复盘/简历补齐）

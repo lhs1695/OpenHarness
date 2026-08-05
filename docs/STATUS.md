@@ -1,6 +1,6 @@
 # STATUS — ForgeFlow 项目状态总览（2026-08-05）
 
-> 当前快照，用于快速了解项目到了哪一步。详细演进见 `docs/PLANS.md`（里程碑）、`docs/NEXT_PHASE.md`（路线图）、`docs/HANDOFF.md`（交接）；复盘见 `docs/RETROSPECTIVE.md`。
+> 当前快照，用于快速了解项目到了哪一步（给新读者）。详细演进见 `docs/PLANS.md`（里程碑）、`docs/NEXT_PHASE.md`（路线图）；**操作性的跨会话交接见 `docs/HANDOFF.md`**（本文档只描述状态，不承载交接清单）；复盘见 `docs/RETROSPECTIVE.md`。
 
 ## 1. 一句话状态
 
