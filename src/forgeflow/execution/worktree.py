@@ -18,6 +18,13 @@ from forgeflow.errors import ExecutionNotPreparedError
 from forgeflow.execution.base import Artifact, ExecutionResult, resolve_workspace_path
 from openharness.swarm.worktree import WorktreeInfo, WorktreeManager
 
+_IGNORED_ARTIFACT_PREFIXES = (
+    ".pytest_cache/",
+    "__pycache__/",
+    ".mypy_cache/",
+    ".ruff_cache/",
+)
+
 
 class WorktreeExecutionBackend:
     """Isolated task workspace backed by a git worktree of a source repo."""
@@ -89,8 +96,16 @@ class WorktreeExecutionBackend:
             self._process = None
 
     async def collect_artifacts(self) -> list[Artifact]:
-        name_stdout, _ = await self._run_git("diff", "HEAD", "--name-only")
-        changed = [line for line in name_stdout.splitlines() if line.strip()]
+        tracked, _ = await self._run_git("diff", "HEAD", "--name-only")
+        untracked, _ = await self._run_git("ls-files", "--others", "--exclude-standard")
+        names = sorted(
+            {
+                line.strip()
+                for line in (tracked + "\n" + untracked).splitlines()
+                if line.strip()
+            }
+        )
+        changed = [name for name in names if not name.startswith(_IGNORED_ARTIFACT_PREFIXES)]
         artifacts = [Artifact(artifact_type="changed_file", path=name) for name in changed]
         stat_stdout, _ = await self._run_git("diff", "HEAD", "--stat")
         artifacts.append(

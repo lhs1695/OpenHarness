@@ -11,7 +11,7 @@
 | M1 最小适配层与垂直链路 | ✅ 实现完成（待独立审查） | `milestone/m1-adapter` | `src/forgeflow/integrations/openharness/*` + `domain/task.py` + 测试 |
 | M2 状态机/风险/预算 | ✅ 实现完成（待独立审查） | `milestone/m2-control-plane` | `domain/{policy,risk}`、`orchestration/{state_machine,budgets}`、`errors.py` |
 | M3 Local Worktree 隔离执行 | ✅ 实现完成（待独立审查） | `milestone/m3-isolation` | `execution/{base,worktree}.py` |
-| M4 代码修改与质量门禁 | 待开始 | `milestone/m4-quality` | `quality/*` |
+| M4 代码修改与质量门禁 | ✅ 实现完成（待独立审查） | `milestone/m4-quality` | `quality/{gates,reports}.py` |
 | M5 审批/Reviewer/交付 | 待开始 | `milestone/m5-approval` | `domain/approval.py`、`quality/reviewer.py` |
 | M6 服务化与持久化 | 待开始 | `milestone/m6-service` | `api/`、`infrastructure/`、compose |
 | M7 全链路 Trace | 待开始 | `milestone/m7-trace` | `trace/*` |
@@ -86,10 +86,24 @@ pyrightconfig.json                                       # extraPaths=src（编�
 
 **验收对应**：不修改原工作目录（`test_task_change_isolated_from_original` 断言原仓库文件未变）；路径越界拒绝（`..`、绝对路径、符号链接 → `PathEscapeError`）；超时终止子进程（`time.sleep(30)` timeout=2 → `timed_out`）；3 个固定任务完成（跑测试 / 改动隔离 / 安全约束）；失败可清理（`test_cleanup_removes_worktree`）。
 
-## M4 — 代码修改与质量门禁
+## M4 — 代码修改与质量门禁（实现完成，待独立审查）
 
-- `quality/gates.py`、`quality/reports.py`。门禁只对**改动文件**跑 ruff/mypy（上游全树本就不通过，见 `docs/audit/BASELINE.md` §3.4/3.5）。
-- 验收：支持 pytest/Ruff/mypy 中实际可用命令；失败结构化保存；禁止路径与 Diff 大小门禁生效；禁止"改测试掩盖 Bug"；5 个固定任务可复现。
+**交付**：
+- `quality/gates.py` — 5 个确定性纯门禁（`GateResult` 结构化输出）：
+  - `forbidden_paths_gate`（**硬**：改动触及禁止路径 → FAILED）
+  - `diff_size_gate`（**软**：改动文件数 > `max_changed_files`）
+  - `test_masking_gate`（**软**：代码变更任务只改测试 → 疑似掩盖 Bug）
+  - `secret_scan_gate`（**硬**：改动文件含 api_key/token/AWS key 等模式）
+  - `required_commands_gate`（**硬**：仓库必需命令全部退出码 0）
+- `quality/reports.py` — `QualityReport`（`hard_failures`/`soft_failures`/`passed`/`summarize`）+ `QualityGateRunner`（收集改动文件、读内容、跑必需命令、评估全部门禁）+ `render_report_markdown`。
+- **M3 后端修复**：`collect_artifacts` 增加未跟踪文件（`git ls-files --others`）并过滤缓存目录——`git diff HEAD` 不显示新文件导致改动清单为空。
+
+**实际验证（2026-08-05）**：
+- `pytest tests/forgeflow -q` → **81 passed, 1 skipped**（M4 新增 20：13 门禁单测 + 6 固定任务集成 + 1 报告）
+- `ruff check src/forgeflow tests/forgeflow` → clean
+- `MYPYPATH=src mypy src/forgeflow --explicit-package-bases --python-version 3.11` → Success（19 文件）
+
+**验收对应**：支持实际可用的必需命令（`required_commands_gate` + runner 用 `shlex.split` 结构化执行）；失败结构化保存（`GateResult.details` + `QualityReport.summarize`）；禁止路径与 Diff 大小门禁生效（硬/软）；禁止"改测试掩盖 Bug"（`test_masking_gate`）；7 个固定任务可复现（`test_quality_gates.py`）。
 
 ## M5 — 审批/Reviewer/交付
 
