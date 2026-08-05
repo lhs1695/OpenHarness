@@ -4,6 +4,8 @@ on:
   push:
     branches: [main, develop]
   pull_request:
+  # Manual trigger for the online smoke job (costs real API tokens).
+  workflow_dispatch:
 
 jobs:
   test:
@@ -64,3 +66,35 @@ jobs:
 
       - name: Tests (upstream, offline; informational)
         run: pytest tests --ignore=tests/forgeflow -q
+
+  # Manual online smoke against the real model (DeepSeek). Only runs on
+  # workflow_dispatch; requires the DEEPSEEK_API_KEY Actions secret. Skips the
+  # pytest step (and effectively the whole job) when the secret is absent.
+  online-smoke:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      ANTHROPIC_BASE_URL: https://api.deepseek.com/anthropic
+      OPENHARNESS_MODEL: deepseek-v4-flash
+      ANTHROPIC_AUTH_TOKEN: ""
+      ANTHROPIC_CUSTOM_HEADERS: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,service]"
+
+      - name: Online smoke (real DeepSeek calls; skip if no secret configured)
+        if: ${{ secrets.DEEPSEEK_API_KEY != '' }}
+        run: |
+          pytest -m online -q \
+            tests/forgeflow/integration/test_reviewer_online.py \
+            tests/forgeflow/integration/test_strategies_online_live.py \
+            tests/forgeflow/unit/test_model_executor.py::test_model_executor_online
