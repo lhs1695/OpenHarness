@@ -8,11 +8,9 @@ skips already-completed transitions (state machine idempotency).
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
-from uuid import uuid4
 
 from forgeflow.application.event_bus import EventBus
-from forgeflow.application.executors import TaskExecutor
+from forgeflow.application.executors import ExecutionOutcome, TaskExecutor
 from forgeflow.domain.approval import (
     ApprovalManager,
     ApprovalRequiredError,
@@ -23,6 +21,8 @@ from forgeflow.domain.risk import RiskLevel, risk_level
 from forgeflow.errors import IllegalTransitionError
 from forgeflow.infrastructure.store import StoredTask, TaskStore, to_stored_approval
 from forgeflow.orchestration.state_machine import TaskEvent, TaskState, TaskStateMachine
+from forgeflow.trace.collector import TraceCollector
+from forgeflow.trace.repository import TraceRepository
 
 
 class TaskOrchestrator:
@@ -39,6 +39,7 @@ class TaskOrchestrator:
         self._executor = executor
         self._approvals = approvals
         self._running: dict[str, asyncio.Task[None]] = {}
+        self._collector: TraceCollector | None = None
 
     def start(self, task_id: str) -> None:
         task = asyncio.create_task(self._run(task_id))
@@ -71,6 +72,8 @@ class TaskOrchestrator:
         stored = self._store.get_task(task_id)
         if stored is None:
             return
+        run_id = f"run_{task_id}"
+        self._collector = TraceCollector(task_id=task_id, run_id=run_id)
         machine = TaskStateMachine(TaskState(stored.status))
         self._advance(stored, machine, TaskEvent.VALIDATED)
         self._advance(stored, machine, TaskEvent.PREPARE_ENVIRONMENT)
@@ -83,6 +86,7 @@ class TaskOrchestrator:
                 self._request_approvals(stored, approval_requirements(risk))
                 self._advance(stored, machine, TaskEvent.APPROVAL_NEEDED)
                 self._persist(stored, machine)
+                self._persist_trace(task_id, run_id)
                 return  # paused at WAITING_PLAN_APPROVAL until approvals resolve
             if machine.state is TaskState.WAITING_PLAN_APPROVAL:
                 self._advance(stored, machine, TaskEvent.PLAN_APPROVED)
@@ -94,7 +98,9 @@ class TaskOrchestrator:
             self._advance(stored, machine, TaskEvent.CANCEL)
             self._advance(stored, machine, TaskEvent.CANCEL_CONFIRMED)
             self._persist(stored, machine)
+            self._persist_trace(task_id, run_id)
             raise
+        self._record_commands(outcome)
         if outcome.status == "failed":
             self._advance(stored, machine, TaskEvent.FAIL)
         elif outcome.status == "budget_exceeded":
@@ -105,6 +111,7 @@ class TaskOrchestrator:
             self._advance(stored, machine, TaskEvent.REVIEW_FINISHED)
             self._advance(stored, machine, TaskEvent.DELIVERED)
         self._persist(stored, machine)
+        self._persist_trace(task_id, run_id)
 
     def _advance(self, stored: StoredTask, machine: TaskStateMachine, event: TaskEvent) -> None:
         previous = machine.state
@@ -115,14 +122,27 @@ class TaskOrchestrator:
         payload = {"from": previous.value, "to": machine.state.value, "event": event.value}
         self._event_bus.publish(stored.id, "task_state_changed", payload)
         self._store.update_task(stored.id, status=machine.state.value)
-        self._store.append_event(
-            task_id=stored.id,
-            run_id="",
-            event_type="task_state_changed",
-            payload=payload,
-            event_id=uuid4().hex,
-            occurred_at=datetime.now(UTC),
+        if self._collector is not None:
+            self._collector.on_task_event("task_state_changed", payload)
+
+    def _record_commands(self, outcome: ExecutionOutcome) -> None:
+        if self._collector is None:
+            return
+        for result in outcome.command_results.values():
+            self._collector.on_command(
+                command=result.command,
+                returncode=result.returncode,
+                duration_ms=result.duration_ms,
+                output=result.stdout,
+            )
+
+    def _persist_trace(self, task_id: str, run_id: str) -> None:
+        if self._collector is None:
+            return
+        TraceRepository(self._store).save_events(
+            task_id=task_id, run_id=run_id, events=self._collector.events()
         )
+        self._collector = None
 
     def _persist(self, stored: StoredTask, machine: TaskStateMachine) -> None:
         self._store.update_task(stored.id, status=machine.state.value)

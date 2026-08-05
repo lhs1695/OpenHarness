@@ -14,7 +14,7 @@
 | M4 代码修改与质量门禁 | ✅ 实现完成（待独立审查） | `milestone/m4-quality` | `quality/{gates,reports}.py` |
 | M5 审批/Reviewer/交付 | ✅ 实现完成（待独立审查） | `milestone/m5-approval` | `domain/approval.py`、`quality/reviewer.py`、`orchestration/delivery.py` |
 | M6 服务化与持久化 | ✅ 实现完成（待独立审查） | `milestone/m6-service` | `api/`、`application/`、`infrastructure/`、compose |
-| M7 全链路 Trace | 待开始 | `milestone/m7-trace` | `trace/*` |
+| M7 全链路 Trace | ✅ 实现完成（待独立审查） | `milestone/m7-trace` | `trace/*` |
 | M8 评测平台 | 待开始 | `milestone/m8-eval` | `evaluation/*`、`evals/` |
 | M9 数据回流与经验闭环 | 待开始 | `milestone/m9-feedback` | `evaluation/datasets.py` |
 | M10 包装与维护 | 待开始 | `milestone/m10-packaging` | README、CI、40+ 测试 |
@@ -139,10 +139,22 @@ pyrightconfig.json                                       # extraPaths=src（编�
 
 **验收对应**：API 可建/启/查/取消任务（TestClient + live uvicorn 集成测试）；SSE 实时事件（live server 测试验证 stream 收到 `task_state_changed`）；重启不丢（SQLite 持久化 + 双服务恢复测试：任务状态与 Trace 事件都在）；Celery 重复消息不重复执行（`command_id` 幂等，eager 模式测试）；compose 文件（语法校验通过，运行待 Docker 环境）。
 
-## M7 — 全链路 Trace
+## M7 — 全链路 Trace（实现完成，待独立审查）
 
-- `trace/events.py`、`collector.py`、`redaction.py`、`repository.py`。数据源 `StreamEvent`（`engine/stream_events.py:82`）。
-- 验收：一个任务可导出完整 JSONL；父子/并行 span 可还原；敏感数据脱敏；CLI/页面可看时间线。
+**交付**：
+- `trace/events.py` — `SpanEvent`（event_id/span_id/parent_event_id/status/summaries/latency/token/estimated_cost/error）+ `estimate_cost`（名义单价估算）。
+- `trace/redaction.py` — `redact` / `redact_payload`（sk-/AKIA/api_key/token/邮箱等模式 → `<redacted>`）。
+- `trace/collector.py` — `TraceCollector`：消费 `StreamEvent`（`engine/stream_events.py:82`）构建模型轮次 span + 工具子 span（**并行工具共享同一父 span**，按 tool_name+顺序关联）、命令 span、任务事件；`to_jsonl` / `timeline` / `summary`；持久化前脱敏。
+- `trace/repository.py` — `TraceRepository`：保存/加载 SpanEvent、导出 JSONL、时间线查询（经 `TaskStore` 持久化）。
+- **编排器接入**：`TaskOrchestrator` 每次运行建 Collector，喂状态事件 + 命令结果，结束经 `TraceRepository` 持久化；`ExecutionOutcome` 增加 `command_results`。
+- **API**：`GET /api/v1/tasks/{id}/timeline` + `GET /api/v1/tasks/{id}/trace`（JSONL 导出）。
+
+**实际验证（2026-08-05）**：
+- `pytest tests/forgeflow -q` → **139 passed, 1 skipped**（M7 新增 16：redaction ×6 + collector ×8 + 集成 ×2）
+- `ruff check src/forgeflow tests/forgeflow` → clean
+- `MYPYPATH=src mypy src/forgeflow --explicit-package-bases --python-version 3.11` → Success（42 文件）
+
+**验收对应**：一个任务可导出完整 JSONL（`export_trace_jsonl` + live API `/trace` 测试）；父子/并行 span 可还原（collector 测试断言工具 span 父=轮次 span、并行工具共享父 span）；敏感数据脱敏（`redaction` + collector 输出断言）；时间线可查（`timeline` + live API `/timeline` 测试）；Trace 含结构化事件（不依赖聊天文本）。
 
 ## M8 — 评测平台
 

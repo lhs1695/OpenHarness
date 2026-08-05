@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Protocol
 
 from forgeflow.domain.policy import RepositoryPolicy
+from forgeflow.execution.base import ExecutionResult
 from forgeflow.execution.worktree import WorktreeExecutionBackend
 from forgeflow.infrastructure.store import StoredTask
 from forgeflow.quality.reports import QualityGateRunner
@@ -23,6 +24,7 @@ class ExecutionOutcome:
     status: str
     error: str | None = None
     gate_summary: dict[str, object] = field(default_factory=dict)
+    command_results: dict[str, ExecutionResult] = field(default_factory=dict)
 
 
 class TaskExecutor(Protocol):
@@ -46,12 +48,18 @@ class LocalTaskExecutor:
                 task_type=task.task_type,
                 workspace=workspace,
             )
+            command_results = dict(report.command_results)
             if report.passed:
-                return ExecutionOutcome(status="completed", gate_summary=report.summarize())
+                return ExecutionOutcome(
+                    status="completed",
+                    gate_summary=report.summarize(),
+                    command_results=command_results,
+                )
             return ExecutionOutcome(
                 status="failed",
                 gate_summary=report.summarize(),
                 error=f"quality gates failed: {report.summarize()['hard_failures']}",
+                command_results=command_results,
             )
         finally:
             await backend.cleanup()
