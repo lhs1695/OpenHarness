@@ -29,7 +29,8 @@
 | [STATUS.md](STATUS.md) | 项目状态总览（当前快照，给新读者） |
 | [HANDOFF.md](HANDOFF.md) | 跨会话交接（操作性的，给新会话） |
 | [NEXT_STEPS.md](NEXT_STEPS.md) | 下一轮交接提示词 + 维护清单 |
-| [NEXT_PHASE.md](NEXT_PHASE.md) | 下一阶段路线图（Phase 2） |
+| [NEXT_PHASE.md](NEXT_PHASE.md) | Phase 2 路线图（加固，已全部完成） |
+| [PHASE3.md](PHASE3.md) | Phase 3 路线图（生产化 + 数据闭环） |
 | [RETROSPECTIVE.md](RETROSPECTIVE.md) | 项目复盘 |
 | [RESUME.md](RESUME.md) | 简历描述 |
 

@@ -101,7 +101,8 @@ docker compose up --build
 | [docs/INTERVIEW.md](docs/INTERVIEW.md) | 20 个面试问题 |
 | [docs/RETROSPECTIVE.md](docs/RETROSPECTIVE.md) | 项目复盘（真实评测数字） |
 | [docs/RESUME.md](docs/RESUME.md) | 简历描述（PROJECT_SPEC §20 模板） |
-| [docs/NEXT_PHASE.md](docs/NEXT_PHASE.md) | 下一阶段路线图（Phase 2 工作项） |
+| [docs/NEXT_PHASE.md](docs/NEXT_PHASE.md) | Phase 2 路线图（加固，已全部完成） |
+| [docs/PHASE3.md](docs/PHASE3.md) | Phase 3 路线图（生产化 + 数据闭环） |
 | [docs/STATUS.md](docs/STATUS.md) | 项目状态总览（当前快照） |
 | [docs/PLANS.md](docs/PLANS.md) / [docs/HANDOFF.md](docs/HANDOFF.md) | 里程碑计划 / 跨会话交接 |
 
