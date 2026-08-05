@@ -316,7 +316,7 @@ class TaskOrchestrator:
                 command=result.command,
                 returncode=result.returncode,
                 duration_ms=result.duration_ms,
-                output=result.stdout,
+                output=f"{result.stdout}\n{result.stderr}".strip(),
             )
 
     def _persist_trace(self, task_id: str, run_id: str) -> None:
