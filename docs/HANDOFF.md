@@ -14,7 +14,8 @@
 - **Docker Compose 端到端验证（P0-1）**：✅ `docker compose up -d` 四服务 + API 全生命周期 COMPLETED。修了 Dockerfile（清华 pip 镜像、COPY frontend、装 git、装 pytest）与 compose（alpine 镜像、可写 git 化 fixture 挂载、`FORGEFLOW_REQUIRED_COMMANDS`）。api 镜像 **597MB**。
 - **服务路径质量门禁（P0-1 遗留）**：✅ `FORGEFLOW_REQUIRED_COMMANDS` env 注入 policy，服务路径真跑仓库测试；容器内 billing 任务 FAILED 验证通过。
 - **标签推送（P1-2）**：✅ `upstream-base-0.1.9` 已推送 origin。
-- **复盘/简历/路线图**：✅ `docs/RETROSPECTIVE.md`、`docs/RESUME.md`、`docs/NEXT_PHASE.md` 已就位。
+- **上游同步（P2-1）**：✅ 已执行——`upstream/main` 相对 `develop` 0 新提交，无需同步。
+- **复盘/简历/路线图/状态**：✅ `docs/RETROSPECTIVE.md`、`docs/RESUME.md`、`docs/NEXT_PHASE.md`、`docs/STATUS.md` 已就位。
 - **分支/worktree**：
   - `main` @ `af94671`（可发布，含 setup 文档）
   - `develop`（含 M0–M10 + 本轮在线评测代码与文档，已推送 origin）
@@ -45,7 +46,8 @@
 2. **补写暂缓文档**：✅ `docs/RETROSPECTIVE.md`（一页复盘）与 `docs/RESUME.md`（PROJECT_SPEC §20 模板填真实数字）已补齐。
 3. **经验检索 before/after（P0-2）**：✅ 已完成。plan_gates 75% → 87.5%（`evals/reports/2026-08-05-online-default-retrieval.md`）；机制见 `docs/NEXT_PHASE.md` P0-2。
 4. **服务层模型驱动 executor（P1-1）**：✅ 已完成。`FORGEFLOW_EXECUTOR=model` 即可用真实 Agent 执行服务任务；见 `docs/NEXT_PHASE.md` P1-1。
-5. **待做/持续**：CI 在线评测 job（需 DeepSeek secret）；上游同步（P2-1，当前 upstream 无新提交）；质量基线维护（P2-3）。
+5. **CI 在线评测 job**：✅ 已实现（`workflow_dispatch` 手动触发；需 GitHub Secret `DEEPSEEK_API_KEY`，无 secret 自动跳过）。定位为便利按钮，非门禁。
+6. **待做/持续**：质量基线维护（P2-3）；可选 CI 定时在线评测、真实 trace 回流反馈管道。当前状态总览见 `docs/STATUS.md`。
 
 ## 待办/风险
 

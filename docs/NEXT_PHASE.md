@@ -39,14 +39,16 @@
 - **验收**：`git push origin upstream-base-0.1.9` 后可 `git show-ref` 核验。
 - **风险**：推送标签属共享状态，执行前确认。
 
-### P2-1 上游同步（NEXT_STEPS §4.5）
+### P2-1 上游同步（NEXT_STEPS §4.5）—— ✅ 已执行（2026-08-05，无变化）
 - **规则**：仅里程碑间隙、且为安全/兼容/严重 bugfix 时 `git fetch upstream` → 独立 `sync/upstream-<sha>` 分支 → 上游测试 → ForgeFlow 回归 → 更新 `UPSTREAM_MAP`。
 - **验收**：`UPSTREAM_MAP` 更新；`src/openharness` 仍 0 修改（确需修改须 `patches/` + ADR）。
+- **结果**：`git fetch upstream` 后 `upstream/main` 相对 `develop` **0 新提交**（`upstream-base-0.1.9` = upstream/main）→ **无需同步**，上游边界不变，`UPSTREAM_MAP` 无需更新。
 
 ### P2-2 CI 扩展（可选）—— ✅ 已完成（2026-08-05）
 - 现状：CI 主 job 跑 `tests/forgeflow`（ruff/mypy/pytest，Python 3.11/3.12），默认跳过 online。
 - 新增：`upstream-regression` job（Linux, `continue-on-error: true` 非阻塞）跑 `pytest tests --ignore=tests/forgeflow`（1159 项）——对 14 个 Windows 预存失败做 Linux 复验。
-- 未加在线评测 job：需 DeepSeek secret 才可用（无凭据不硬塞一个会失败的 job）。
+- 新增：`online-smoke` job（`workflow_dispatch` 手动触发）跑稳健在线测试；需 GitHub Secret `DEEPSEEK_API_KEY`，无 secret 自动跳过。**定位是"按需重跑评测的便利按钮"，不是 CI 门禁**（烧真钱 + LLM 不确定，详见 `docs/STATUS.md` §8）。
+- `test_vertical_chain` 已修 `max_turns` 6→20（不再 flaky），但因单测 ~13 分钟且策略测试已覆盖规划，保持在 CI 冒烟之外。
 
 ### P2-3 质量基线维护
 - 每个改动后：`pytest tests/forgeflow -q`、`ruff check src/forgeflow tests/forgeflow`、`MYPYPATH=src mypy src/forgeflow --explicit-package-bases --python-version 3.11`。
@@ -54,10 +56,10 @@
 
 ## 3. 依赖与排序建议
 
-- ✅ 已完成：P0-2（检索对比）、P1-1（服务层模型驱动 executor）、P0-1（Docker Compose 端到端验证）、P1-2（推标签）、P2-2（CI 扩展）。
+- ✅ 已完成全部计划项：P0-2（检索对比）、P1-1（服务层模型驱动 executor）、P0-1（Docker Compose 端到端验证）、P1-2（推标签）、P2-1（上游同步，无新提交）、P2-2（CI 扩展，含手动在线冒烟）。
 - ✅ 已闭合遗留：服务路径 required_commands 注入（`FORGEFLOW_REQUIRED_COMMANDS`）。
-- 剩余/持续：P2-1（上游同步，当前 upstream 无新提交，按规则仅在必要时做）、P2-3（质量基线，持续维护）、CI 在线评测 job（需 DeepSeek secret）。
-- 建议顺序：**P2-3（持续）→ 按需处理遗留项**。
+- 持续：P2-3（质量基线维护）；可选：CI 定时在线评测、真实 trace 回流反馈管道。
+- 当前状态总览见 `docs/STATUS.md`。
 
 ## 4. 完成定义
 
