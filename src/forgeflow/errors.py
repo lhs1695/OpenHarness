@@ -1,7 +1,7 @@
-"""ForgeFlow error hierarchy.
+"""ForgeFlow error hierarchy (business layer).
 
-All errors surfaced by the adapter are ForgeFlow types; OpenHarness
-exceptions are wrapped so the business layer never depends on them.
+All ForgeFlow layers raise these types; OpenHarness exceptions are wrapped
+into them by the adapter so business code never depends on upstream types.
 """
 
 
@@ -21,13 +21,17 @@ class ProviderError(AdapterError):
     """A model provider failed during execution."""
 
 
-class ExecutionTimeoutError(AdapterError):
+class ExecutionTimeoutError(ForgeFlowError):
     """Execution exceeded its time budget."""
 
 
-class BudgetExceededError(AdapterError):
+class BudgetExceededError(ForgeFlowError):
     """A task budget (tokens / tools / time) was exceeded."""
 
 
-class UnsupportedOperationError(AdapterError):
+class UnsupportedOperationError(ForgeFlowError):
     """ForgeFlow does not support the requested operation for this input."""
+
+
+class IllegalTransitionError(ForgeFlowError):
+    """A state-machine transition is not allowed from the current state."""

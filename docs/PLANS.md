@@ -9,7 +9,7 @@
 |---|---|---|---|
 | M0 上游审计与基线 | ✅ 完成（2026-08-05，已审查） | `milestone/m0-audit` | `docs/audit/*`、`docs/UPSTREAM_MAP.md`、`docs/adr/0001` |
 | M1 最小适配层与垂直链路 | ✅ 实现完成（待独立审查） | `milestone/m1-adapter` | `src/forgeflow/integrations/openharness/*` + `domain/task.py` + 测试 |
-| M2 状态机/风险/预算 | 待开始 | `milestone/m2-control-plane` | `domain/*`、`orchestration/*` |
+| M2 状态机/风险/预算 | ✅ 实现完成（待独立审查） | `milestone/m2-control-plane` | `domain/{policy,risk}`、`orchestration/{state_machine,budgets}`、`errors.py` |
 | M3 Local Worktree 隔离执行 | 待开始 | `milestone/m3-isolation` | `execution/worktree.py` |
 | M4 代码修改与质量门禁 | 待开始 | `milestone/m4-quality` | `quality/*` |
 | M5 审批/Reviewer/交付 | 待开始 | `milestone/m5-approval` | `domain/approval.py`、`quality/reviewer.py` |
@@ -56,11 +56,21 @@ pyrightconfig.json                                       # extraPaths=src（编�
 
 **验证命令**：`pytest tests/forgeflow -q`；`ruff check src/forgeflow`；`mypy src/forgeflow --python-version 3.11`（只对 ForgeFlow 代码，不要求上游全树通过）。
 
-## M2 — 状态机/风险/预算
+## M2 — 状态机/风险/预算（实现完成，待独立审查）
 
-- `domain/policy.py`、`domain/risk.py`、`orchestration/state_machine.py`、`orchestration/budgets.py`。
-- 状态机见 `docs/STATE_MACHINE.md`；风险规则透明可解释（0–100，输出原因）；预算超限 → `BUDGET_EXCEEDED`。
-- 验收：状态转移测试覆盖正常/失败/取消/非法；风险原因可解释；超预算停止；同一命令重复执行不重复改状态。
+**交付**：
+- `domain/policy.py` — `RepositoryPolicy`（敏感/禁止路径、必需/禁止命令、文件数/时长/步数上限、审批规则）。
+- `domain/risk.py` — 规则引擎：8 条可解释规则（敏感模块+20 / Migration+25 / 公共API+15 / 多文件+10 / 缺测试+15 / 多次失败+10 / Reviewer高风险+20 / 仅文档测试-10），输出 0–100 分 + 每项原因，等级 LOW/MEDIUM/HIGH/SEVERE。
+- `orchestration/state_machine.py` — 表驱动状态机：`transition(state,event)` 纯函数 + `TaskStateMachine.apply`（幂等 no-op）；非法转移抛 `IllegalTransitionError`；PAUSE/RESUME、CANCEL→CANCELLED、BUDGET_EXCEEDED、FAIL 全路径。
+- `orchestration/budgets.py` — `Budget`/`BudgetUsage`/`check_budget` 纯检查 + `BudgetTracker` 状态跟踪（步数/模型/工具/Token/时长）。
+- **错误层级收敛**：`ForgeFlowError` 体系移到业务层 `forgeflow/errors.py`（`integrations/.../exceptions.py` 删除），adapter 与 M1 测试已更新导入。
+
+**实际验证（2026-08-05）**：
+- `pytest tests/forgeflow -q` → **52 passed, 1 deselected**（M1 13 + M2 39）
+- `ruff check src/forgeflow tests/forgeflow` → clean
+- `MYPYPATH=src mypy src/forgeflow --explicit-package-bases --python-version 3.11` → Success（13 文件）
+
+**验收对应**：状态转移测试覆盖正常/审批/取消/暂停恢复/非法/幂等（`test_state_machine.py`）；风险原因可解释（`test_risk.py` 断言 reasons 含"（+20）"）；超预算检测（`test_budgets.py`）；同一命令重复执行不重复改状态（幂等 no-op 测试）。
 
 ## M3 — Local Worktree 隔离执行
 
