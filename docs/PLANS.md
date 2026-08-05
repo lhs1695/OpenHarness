@@ -13,7 +13,7 @@
 | M3 Local Worktree 隔离执行 | ✅ 实现完成（待独立审查） | `milestone/m3-isolation` | `execution/{base,worktree}.py` |
 | M4 代码修改与质量门禁 | ✅ 实现完成（待独立审查） | `milestone/m4-quality` | `quality/{gates,reports}.py` |
 | M5 审批/Reviewer/交付 | ✅ 实现完成（待独立审查） | `milestone/m5-approval` | `domain/approval.py`、`quality/reviewer.py`、`orchestration/delivery.py` |
-| M6 服务化与持久化 | 待开始 | `milestone/m6-service` | `api/`、`infrastructure/`、compose |
+| M6 服务化与持久化 | ✅ 实现完成（待独立审查） | `milestone/m6-service` | `api/`、`application/`、`infrastructure/`、compose |
 | M7 全链路 Trace | 待开始 | `milestone/m7-trace` | `trace/*` |
 | M8 评测平台 | 待开始 | `milestone/m8-eval` | `evaluation/*`、`evals/` |
 | M9 数据回流与经验闭环 | 待开始 | `milestone/m9-feedback` | `evaluation/datasets.py` |
@@ -121,11 +121,23 @@ pyrightconfig.json                                       # extraPaths=src（编�
 
 **验收对应**：Reviewer 默认只读（只读工具白名单 + 在线验证）；未批准高险不继续（`assert_approvals_complete` 抛 `ApprovalRequiredError`）；审批接口幂等（重复/冲突 resolve 幂等）；Draft PR 仅测试仓库（`DraftPrGuardError`）；审批进审计 Trace（audit_log 记录操作者/时间/理由）。
 
-## M6 — 服务化与持久化
+## M6 — 服务化与持久化（实现完成，待独立审查）
 
-- `application/`、`api/`、`infrastructure/`（FastAPI + PostgreSQL + Redis + Celery + SSE + Docker Compose）。
-- Windows：Celery 用 `--pool=solo`/threads；先验证 WSL2 再上 compose。
-- 验收：API 可建/启/查/取消任务；SSE 实时；重启不丢；Celery 幂等；compose 可启动。
+**交付**：
+- `infrastructure/` — SQLAlchemy 持久化（`database.py` SQLite 默认 / PostgreSQL URL、`models.py` Task/Run/TraceEvent/Approval、`store.py` `TaskStore`）。
+- `application/` — `EventBus`（异步队列，SSE 源）、`TaskOrchestrator`（驱动状态机 + 逐步持久化状态与 Trace + 审批门 + 取消/暂停/恢复 + 可注入 `TaskExecutor`）、`TaskService`（建/启/查/取消/暂停/审批 + `command_id` 幂等）、`executors.py`（`LocalTaskExecutor`：worktree + 必需命令 + 门禁）、`factory.py`（env 构建服务）。
+- `api/` — FastAPI：`POST/GET /api/v1/tasks`、`GET /tasks/{id}`、`POST /tasks/{id}/start|pause|resume|cancel`、`GET /tasks/{id}/events`（SSE）、`GET /tasks/{id}/approvals`、`POST /approvals/{id}/approve|reject`、`server.py`（uvicorn 入口）。
+- `infrastructure/celery_app.py` — Celery `execute_task_message`（worker 无 loop 时 `run_sync` 全量执行；重复投递经 `command_id` 幂等）。
+- `docker-compose.yml`（postgres + redis + api + worker）+ `Dockerfile`。
+- pyproject：新增 `service` extra（fastapi/sqlalchemy/celery/redis/psycopg2）。
+
+**实际验证（2026-08-05）**：
+- `pytest tests/forgeflow -q` → **123 passed, 1 skipped**（M6 新增 17：service/持久化恢复/Celery 幂等/API+SSE/审批流）
+- `ruff check src/forgeflow tests/forgeflow` → clean
+- `MYPYPATH=src mypy src/forgeflow --explicit-package-bases --python-version 3.11` → Success（37 文件）
+- `docker compose -f docker-compose.yml config --quiet` → 语法有效（**本机 Docker daemon/WSL2 未运行，`up` 需启动 Docker Desktop 后验证**）
+
+**验收对应**：API 可建/启/查/取消任务（TestClient + live uvicorn 集成测试）；SSE 实时事件（live server 测试验证 stream 收到 `task_state_changed`）；重启不丢（SQLite 持久化 + 双服务恢复测试：任务状态与 Trace 事件都在）；Celery 重复消息不重复执行（`command_id` 幂等，eager 模式测试）；compose 文件（语法校验通过，运行待 Docker 环境）。
 
 ## M7 — 全链路 Trace
 
